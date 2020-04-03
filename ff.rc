@@ -681,20 +681,27 @@ function read_identify(it)		-- we're already doing this from a safe location, ju
 	crawl.sendkeys("r" .. items.index_to_letter(it.slot) .. string.char(27) .. string.char(13))
 end
 
-function wear_identify(it)		-- TODO: implement autoequip, so we can wear-id without being stuck with junk
+--function wear_identify(it)		-- TODO: implement autoequip, so we can wear-id without being stuck with junk
+--	local itname = it.name()
+--	local itclass = it.class(true)
+--	crawl.mpr("Trying to wear-identify item: " .. itname)
+--
+--	if itclass == "armour" then
+--		crawl.mpr("Trying to wear-identify armour: " .. itname)
+--		it.wear()
+--	elseif itclass == "jewellery" and itname:find("ring") then
+--		crawl.mpr("Trying to wear-identify jewellery: " .. itname)
+--		it.puton()
+--	else
+--		crawl.mpr("Couldn't wear-id item: " .. itname .. " , Is it not armour or a ring?")
+--	end
+--end
+
+function wear_identify(it)
 	local itname = it.name()
-	local itclass = it.class(true)
 	crawl.mpr("Trying to wear-identify item: " .. itname)
 
-	if itclass == "armour" then
-		crawl.mpr("Trying to wear-identify armour: " .. itname)
-		it.wear()
-	elseif itclass == "jewellery" and itname:find("ring") then
-		crawl.mpr("Trying to wear-identify jewellery: " .. itname)
-		it.puton()
-	else
-		crawl.mpr("Couldn't wear-id item: " .. itname .. " , Is it not armour or a ring?")
-	end
+	equip(it)
 end
 
 --function equip(it)							-- TODO: turns out i probably need to use items.wear(it) for this instead
@@ -708,13 +715,24 @@ function equip(it)
 	local itclass = it.class(true)
 
 	if itclass == "armour" then
-		crawl.mpr("Trying to equip better armour: " .. itname)
+		crawl.mpr("Trying to equip armour: " .. itname)
 		it.wear()
 	elseif itclass == "jewellery" then
-		crawl.mpr("Trying to equip better jewellery: " .. itname)
-		it.puton()
+		if it.equip_type == 101 then
+			crawl.mpr("Trying to equip ring: " .. itname)
+			local worst_ring = check_worst_equipped_ring()
+			if worst_ring ~= nil then
+				local worst_slot_key = items.index_to_letter(worst_ring.slot)
+				crawl.sendkeys("P" .. items.index_to_letter(it.slot) .. worst_slot_key)
+			else
+				it.puton()
+			end
+		else
+			crawl.mpr("Trying to equip jewellery: " .. itname)
+			it.puton()
+		end
 	else
-		crawl.mpr("Couldn't equip better item: " .. itname .. " , is it not armour or jewellery?")
+		crawl.mpr("Couldn't equip item: " .. itname .. " , is it not armour or jewellery?")
 	end
 end
 
@@ -727,7 +745,6 @@ end
 --	end
 --	return nil
 --end
-
 
 function check_inventory_for_food()
 	local chunk = nil
@@ -757,6 +774,113 @@ function try_to_eat()
 	else
 		kickback("Hungry: Couldn't find any food!")
 	end
+end
+
+-- sourced from output.cc, *s_equip_slot_names[]
+local equip_slot_names_table = {
+	"Weapon",
+	"Cloak",
+	"Helmet",
+	"Gloves",
+	"Boots",
+	"Shield",
+	"Armour",
+	"Left Ring",
+	"Right Ring",
+	"Amulet",
+	"First Ring",
+	"Second Ring",
+	"Third Ring",
+	"Fourth Ring",
+	"Fifth Ring",
+	"Sixth Ring",
+	"Seventh Ring",
+	"Eighth Ring",
+	"Amulet Ring", }
+
+local ring_slot_names_table = {
+	"Left Ring",
+	"Right Ring", }
+
+local octopode_ring_slot_names_table = {
+	"First Ring",
+	"Second Ring",
+	"Third Ring",
+	"Fourth Ring",
+	"Fifth Ring",
+	"Sixth Ring",
+	"Seventh Ring",
+	"Eighth Ring", }
+
+local macabre_ring_slot_name_table = {
+	"Amulet Ring", }
+
+function get_you_ring_slot_tables()
+	local ring_slot_table = {}
+	if you.race() == "Octopode" then
+		table.insert(ring_slot_table, octopode_ring_slot_names_table)
+	else
+		table.insert(ring_slot_table, ring_slot_names_table)
+	end
+
+	local it = items.equipped_at("Amulet")
+	-- name string from /dat/descript/unrand.txt
+	if it ~= nil and it.name():find("macabre finger necklace") then
+		table.insert(ring_slot_table, macabre_ring_slot_name_table)
+	end
+
+	return ring_slot_table
+end
+
+function mpr_ring_slot_tables()
+	local ring_slot_tables = get_you_ring_slot_tables()
+
+	for _,subtable in ipairs(ring_slot_tables) do
+		for _,slot_name in ipairs(subtable) do
+			crawl.mpr(slot_name)
+		end
+	end
+
+end
+
+
+function check_worst_equipped_ring()
+local it = nil
+local itval = nil
+local worst_val = nil
+local worst_it = nil
+local ring_slot_tables = get_you_ring_slot_tables()
+
+	for _,subtable in ipairs(ring_slot_tables) do
+		for _,slot_name in ipairs(subtable) do
+			it = items.equipped_at(slot_name)
+			if it == nil then return it
+			else
+				itval = get_prop_value(it)
+				if worst_val == nil or itval < worst_val then
+				 	worst_val = itval
+					worst_it = it
+				end
+			end
+		end
+	end
+
+	return worst_it
+end
+
+function check_worst_equipped_at(equip_type)
+	local equipped = nil
+
+	-- a quick in-game test shows ring equip_type is 101 on both octopode and merfolk characters,
+	-- i don't know if this is always true
+	-- TODO: figure out if this assumption is safe
+	if equip_type == 101 then
+		equipped = check_worst_equipped_ring()
+	else
+		equipped = items.equipped_at(equip_type)
+	end	
+
+	return equipped
 end
 
 -- items.equipped_at() returns nil for nothing equipped OR invalid slot
@@ -796,21 +920,24 @@ end
 -- it evaluates "better" by relative prop value, as returned from get_prop_value()
 function check_better_equips()
 	for it in inventory() do
-		-- logic problem here: this function won't identify unid stuff, and thus won't compare against it
+		-- possible logic problem here: this function will never identify unid stuff, and thus won't consider it for equip,
+		-- even if the unid thing should obviously be better than what's equipped (e.g. earlygame armour)
 		if it.fully_identified and not it.equipped then
 			if it.class(true) == "armour" or (it.class(true) == "jewellery" and it.name():find("ring")) then
 				local equipped = nil
 				local equip_value = nil
 				-- i need to replace this call with a wrapper fn that grabs the worst equipped item,
 				-- to handle things like ring slots
-				equipped = items.equipped_at(it.equip_type)
+--				equipped = items.equipped_at(it.equip_type)
+				equipped = check_worst_equipped_at(it.equip_type)
 
 				local it_value = get_prop_value(it)
 
 				if equipped ~= nil then
 					equip_value = get_prop_value(equipped)		-- i need this to work with non-artefact items before using this fn
 
-					if it_value > equip_value then
+					-- there's no guarantee that we have remove curse available, so we bail if the equipped slot is cursed
+					if it_value > equip_value and not is_slot_cursed(equipped) then
 						return it
 					end
 				end
@@ -1459,6 +1586,10 @@ function mpr_prop_value(it)
 	crawl.mpr("Relative prop value: " .. tostring(get_prop_value(it)))
 end
 
+function mpr_equip_type(it)
+	crawl.mpr("Equip type (slot value): " .. tostring(it.equip_type))
+end
+
 function mpr_item_debug()							-- debug utility fn, prints to mpr most stats of the first item on the ground at (0,0),
 	local itn = items.get_items_at(0,0)		-- can be used in clua context
 	local it = itn[1]
@@ -1471,6 +1602,7 @@ function mpr_item_debug()							-- debug utility fn, prints to mpr most stats of
 	mpr_ego_false(it)
 	mpr_artprops(it)
 	mpr_prop_value(it)
+	mpr_equip_type(it)
 
 end
 
@@ -2026,29 +2158,6 @@ function get_prop_value(it)
 	return value
 end
 
-
--- sourced from output.cc, *s_equip_slot_names[]
-local equip_slot_names_table = {
-	"Weapon",
-	"Cloak",
-	"Helmet",
-	"Gloves",
-	"Boots",
-	"Shield",
-	"Armour",
-	"Left Ring",
-	"Right Ring",
-	"Amulet",
-	"First Ring",
-	"Second Ring",
-	"Third Ring",
-	"Fourth Ring",
-	"Fifth Ring",
-	"Sixth Ring",
-	"Seventh Ring",
-	"Eighth Ring",
-	"Amulet Ring", }
-
 -- reordering of armour by rough desire = closer to top,
 -- some of these do not fit neatly into a generalized ordering
 
@@ -2546,6 +2655,32 @@ function can_we_wear_id_something()
 
 --	return nil, nil
 	return nil
+end
+
+-- this function doesn't handle rings, call is_slot_cursed()
+function is_slot_type_cursed(slot_type)
+	local it = nil
+	it = items.equipped_at(slot_type)
+
+	if it and it.cursed then return true end
+	return false
+end
+
+function is_slot_cursed(it)
+	if it.equip_type == 101 then
+		local ring_slot_tables = get_you_ring_slot_tables()
+
+		for _,subtable in ipairs(ring_slot_tables) do
+			for _,slot_name in ipairs(subtable) do
+				if is_slot_type_cursed(slot_name) then
+					return true
+				end
+			end
+		end
+		return false
+	else
+		return is_slot_type_cursed(it.equip_type)
+	end
 end
 
 function you_are_cursed()
@@ -3168,6 +3303,12 @@ function c_answer_prompt(prompt)	-- included for convenience; ensures the player
 	if prompt:find("with cheaper") then
 		return false
 	end
+	-- if any of our autoequip logic is bugged, this could cause problems,
+	-- but it *should* only be doing this if the cursed piece is actually better than what's currently worn,
+	-- so we'll allow it for now.
+	if prompt:find("Really wear") and prompt:find("cursed") then
+		return true
+	end
 end
 
 -- This TravelDelay interrupt allows us to bypass the hardcoded EXPLORE_GREEDY shop entry behavior,
@@ -3253,7 +3394,12 @@ function ready()															-- TODO: Try again to get chk_lua_save working.
 			-- kind of thing; i can probably (?) use the base armour def table to pull max ench here
 			-- (except maybe for QDA)
 
-			if bad_equip then
+			local rc_scroll = nil
+			rc_scroll = check_for_known_rc_scroll()
+
+			if bad_equip and is_slot_cursed(bad_equip) and rc_scroll then
+				read(rc_scroll)
+			elseif bad_equip and not is_slot_cursed(bad_equip) then
 				drop(bad_equip)
 			elseif thing then
 				scroll_identify(scroll, thing)
