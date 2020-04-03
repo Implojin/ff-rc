@@ -92,6 +92,7 @@ autopickup_exceptions =
 default_autopickup = true
 explore_greedy = true
 pickup_thrown = true
+easy_unequip = true
 
 # TODO: revisit crawl/options_guide.txt to ensure that explore_stop options are appropriately set
 
@@ -2355,6 +2356,23 @@ function check_for_junk_to_drop()
 	return nil
 end
 
+-- TODO: weapons, this requires adding weapon checks to get_prop_value()
+function check_bad_equips_by_value()
+	for it in inventory() do
+		if it.equipped then
+			local it_class = it.class(true)
+			local it_value = nil
+			if it_class == "armour" or it_class == "jewellery" then
+				it_value = get_prop_value(it)
+			end
+			if it_value ~= nil and it_value < 0 then
+				return it
+			end
+		end
+	end
+	return nil
+end
+
 -- any fn registered with chk_lua_save is supposed to return a valid string of Lua, to be executed on savefile load,
 -- in this case, the intent is to persist ID_SCROLL_RECOGNIZED through saving without using c_persist
 -- hope this works
@@ -3215,6 +3233,13 @@ function ready()															-- TODO: Try again to get chk_lua_save working.
 			local thing = nil
 			scroll, thing = can_we_scroll_id_something()	-- this returns nil, nil if we don't have both
 
+			-- i'm wary of putting the bad_equip check so late in the script. 
+			-- *tele gear could cause problems while trying to rest.
+			-- however, if we've been transformed, we need to rest it off before trying to drop equipment,
+			-- due to the above slot-meld issues.
+			local bad_equip = nil
+			bad_equip = check_bad_equips_by_value()
+
 			local junk = nil
 			junk = check_for_junk_to_drop()
 
@@ -3223,7 +3248,9 @@ function ready()															-- TODO: Try again to get chk_lua_save working.
 			-- kind of thing; i can probably (?) use the base armour def table to pull max ench here
 			-- (except maybe for QDA)
 
-			if thing then
+			if bad_equip then
+				drop(bad_equip)
+			elseif thing then
 				scroll_identify(scroll, thing)
 			elseif junk then 
 				drop(junk)
