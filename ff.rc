@@ -3163,6 +3163,11 @@ function c_answer_prompt(prompt)	-- included for convenience; ensures the player
 	if prompt:find("Really attack barehanded") then		-- today is a special sale day, i don't have time for this prompt
 		return true
 	end
+	-- try to prevent the game interrupting auto-shop with suggested shoplist alterations.
+	-- returning false here in case we later track shop items; it shouldn't hurt to have extra list items in the meantime
+	if prompt:find("with cheaper") then
+		return false
+	end
 end
 
 -- This TravelDelay interrupt allows us to bypass the hardcoded EXPLORE_GREEDY shop entry behavior,
