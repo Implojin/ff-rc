@@ -111,7 +111,6 @@ local auto = false
 local HP_KICKBACK_THRESHOLD = 60
 local POISON_KICKBACK_THRESHOLD = 20
 local SKILL_DRAIN_KICKBACK_THRESHOLD = 80
---local ID_SCROLL_RECOGNIZED = false
 
 function go()
  auto = true
@@ -171,25 +170,25 @@ function m_is_unique(m)		-- uh, do i really need this wrapper when i'm probably 
 end		-- apparently i do
 
 -- TODO: maybe move this to be a local function inside of monster_in_view ? is this worth it?
-function check_rare_ood(m)	-- a local mockup, using clua, of the explorer.rare_ood() implementation in /dat/dlua/explorer.dlua
-	local you_depth = you.depth()				-- assigning all module function calls as locals here, we're running this on an inner loop
-	local mdepth = m:avg_local_depth()	-- ^this is probably premature optimization, but it probably won't hurt
+-- a local mockup, using clua, of the explorer.rare_ood() implementation in /dat/dlua/explorer.dlua
+function check_rare_ood(m)
+	local you_depth = you.depth()				-- assigning crawl module function calls as locals here, we're running this on an inner loop
+	local mdepth = m:avg_local_depth()	-- this is premature optimization, but it probably won't hurt
 	local mprob = m:avg_local_prob()
 	local br_depth = you.depth_fraction()
 	-- dgn.br_depth() appears to return brdepth (branch-local depth, I think); you.depth() will probably work here (?)
 --	local ood_threshold = math.max(2, you_depth / 3)
 	local ood_threshold = 3		-- big ood only, and no pesky inner loop division? TODO: revisit this
 	return mdepth > you_depth + ood_threshold and mprob < 2
-end	-- i have no idea if this implementation is going to produce useful results, but let's try it
+end
 
 
 function monster_in_view(do_kickback)
 	local LOS = you.los()		-- properly handle nonstatic LOS as from nightwalker, robe of night, etc.
 	local safe_los = true
-	local m = nil		-- hmm, is it worth to add this declaration here, up out of the loop?
+	local m = nil
 	local name = nil
 	local threat = nil
---	local unique = nil
 	local weapon_desc = nil
 
 	local mid_threat_count = 0
@@ -203,19 +202,18 @@ function monster_in_view(do_kickback)
 				if do_kickback then
 					name = m:name()
 					threat = m:threat()
---					unique = m:is_unique()
 					weapon_desc = check_mons_weapon_desc(m)
 
 					if weapon_desc then
 						kickback("<lightred>Monster with dangerous weapon: " .. name ..  " (" .. weapon_desc .. ")</lightred>")
 					end
---					if unique then
 					if m_is_unique(m) then
 						kickback("<red>Unique Monster! Careful! : " .. name .. "</red>")
 					end
 					if check_rare_ood(m) then
 						kickback("<magenta>OOD Mons, careful! : " .. name .. "</magenta>")
 					end
+
 					if threat >= 3 then
 						kickback("<red>Extremely Dangerous Mons, RIP AND TEAR: " .. name .. "</red>")
 					elseif threat >= 2 then
@@ -238,16 +236,6 @@ function monster_in_view(do_kickback)
 	return (not safe_los)
 end
 
--- crawl.trim appears to return 0, not nil, and util.trim appears to be walled behind dlua,
--- so here's an identical string trim reimplementation
---
---- Remove leading and trailing whitespace
--- From http://lua-users.org/wiki/CommonFunctions
--- @see crawl.trim
---function trim(s)
---  return (s:gsub("^%s*(.-)%s*$", "%1"))
---end
-
 function you_are_unholy()
 	local species = you.race()
 
@@ -261,16 +249,12 @@ function you_are_unholy()
 	return false
 end
 
--- TODO: Make this more robust against m:desc non-weapon matches, right now it matches on stuff like Scorpions, and it shouldn't.
---local dangerous_brands = { "electrocution", "distortion", "chaos", "venom", "holy wrath", "speed" }
-
 -- {"name", int stop_warning_past_this_xl}
 local dangerous_brands = {
 	{"electrocution", 12},
 	{"distortion", 27},
 	{"chaos", 27},
 	{"venom", 12},
---	{"holy wrath", 15},		-- needs a you.undead (or however this is written) check
 	{"speed", 12},
 	{"flaming", 12},
 	{"freezing", 12},
@@ -282,26 +266,18 @@ local holy_brands = {
 	{"trishula", 27},
 	{"eudemon blade", 27}, }
 
---monster.info:desc(true) returns a full monster description, including wielded weapon
--- after this it's just a matter of string find
 function check_mons_weapon_desc(m)
 -- this pattern match should handle large decimal enchantments, but it won't capture the Axe of Woe
 	local plus = tonumber(string.match(m:desc(true), "%+(%d+)")) -- the ingame text is "its +#"
 	local brand = nil
---	local weapon_desc = ""
-
-	local weapon_desc = string.match(m:desc(true), "(%+%d+[^\n%.]+)")
-
---	if weapon_desc then
---		for _,which_brand in ipairs(dangerous_brands) do
-----			if string.find(m:desc(true), which_brand) then
---			if string.find(weapon_desc, which_brand) then
---				brand = which_brand
---			end
---		end
---	end
-
 	local you_xl = you.xl()
+
+	-- try to extract a weapon descriptor from m:desc(), by matching everything from '+%d' to '\n'ewline,
+	--  try not to return the '.' at the end of the weapon descriptor,
+	-- also try not to erroneously return AC/EV/MR descriptors like '+++'
+	-- TODO: This currently returns a poorly-trimmed string against Wraiths, at least, and probably others. 
+	--				See if I can further improve the pattern match?
+	local weapon_desc = string.match(m:desc(true), "(%+%d+[^\n%.]+)")
 
 	if weapon_desc then
 		for _, which_brand in ipairs(dangerous_brands) do
@@ -324,15 +300,7 @@ function check_mons_weapon_desc(m)
 
 	end
 
---	if plus and (plus >= 3) then weapon_desc = (weapon_desc .. plus .. " ") end
---	if brand then weapon_desc = (weapon_desc .. brand .. " ") end
 	if (plus and (plus >=3)) or brand then
-		-- try to extract a weapon descriptor from m:desc(), by matching everything from '+%d' to '\n'ewline,
-		--  try not to return the '.' at the end of the weapon descriptor,
-		-- also try not to erroneously return AC/EV/MR descriptors like '+++'
-		-- TODO: This currently returns a poorly-trimmed string against Wraiths, at least, and probably others. 
-		--				See if I can further improve the pattern match?
---		weapon_desc = string.match(m:desc(true), "(%+%d+[^\n%.]+)")
 		return weapon_desc
 	end
 	return nil
@@ -367,7 +335,7 @@ local should_feature_auto_stop = {
 	{"closed_clear_door", true},
 	{"runed_clear_door", true},
 	{"malign_gateway", true},
-	{"teleporter", true},	-- old ver
+--	{"teleporter", true},	-- old ver
 	{"transporter", true},
 	{"sealed_stair_up", true},
 	{"sealed_stair_down", true},
@@ -375,7 +343,7 @@ local should_feature_auto_stop = {
 	{"abyssal_stair", true},
 
 	{"enter_shop", true},
-	{"enter_labyrinth", true},	-- old ver
+--	{"enter_labyrinth", true},	-- old ver
 	{"enter_dis", true},
 	{"enter_gehenna", true},
 	{"enter_cocytus", true},
@@ -387,7 +355,7 @@ local should_feature_auto_stop = {
 
 	{"enter_vaults", true},
 	{"enter_zot", true},
-	{"enter_portal_vault", true},		-- old ver
+--	{"enter_portal_vault", true},		-- old ver
 	{"enter_ziggurat", true},
 	{"enter_bazaar", true},
 	{"enter_trove", true},
@@ -402,9 +370,9 @@ local should_feature_auto_stop = {
 
 	{"enter_slime_pits", true},
 	{"enter_orcish_mines", true},
-	{"enter_dwarven_hall", true},		-- really old ver but its still in the code
-	{"enter_forest", true},		-- old ver
-	{"enter_hall_of_blades", true},		-- old ver
+--	{"enter_dwarven_hall", true},		-- really old ver but its still in the code
+--	{"enter_forest", true},		-- old ver
+--	{"enter_hall_of_blades", true},		-- old ver
 	{"enter_lair", true},
 	{"enter_crypt", true},
 	{"enter_temple", true},
@@ -439,7 +407,7 @@ local should_feature_auto_stop = {
 	{"altar_qazlal", true},
 	{"altar_ru", true},
 	{"altar_ecumenical", true},
-	{"altar_pakellas", true},	-- old ver
+--	{"altar_pakellas", true},	-- old ver
 	{"altar_uskayaw", true},
 	{"altar_hepliaklqana", true},
 	{"altar_wu_jian", true}, }
@@ -453,7 +421,14 @@ local should_feature_auto_stop = {
 
 local move_along = false
 
-function check_feature_kickbacks()	-- DONE (i think): feature kickbacks were sometimes not returning player control, revisit this
+
+-- currently, this function only kicks back once per-feature, per-floor
+-- this is not a good way to handle features that may have floor-local duplicates, like shops or transporters:
+-- we're handling shops separately with a combination of a TravelDelay interrupt hook and post-runrest hook,
+-- that approach notifies the player once for every unique shop, when autoexplore travels to its location.
+-- Other floor-local duplicate features are currently unhandled.
+-- TODO: update this function to properly handle other important floor-local duplicate features
+function check_feature_kickbacks()
 	local LOS = you.los()		-- properly handle nonstatic LOS as from nightwalker, robe of night, etc.
 	local feature = nil
 	local where = you.where()
@@ -461,31 +436,16 @@ function check_feature_kickbacks()	-- DONE (i think): feature kickbacks were som
 		for j = -LOS, LOS do
 			feature = view.feature_at(i,j)
 			for _,v in ipairs(should_feature_auto_stop) do
---				if (feature == v[1]) and v[2] and (not move_along) then
 				if feature == v[1] and v[2] then
-
 				-- if we've already found this feature on the current floor, then don't kickback
 					if update_found_kfeats_table(feature, where) then
 						kickback("Pause for important dungeon feature: " .. feature)
-						-- the above is not a good comparison for shops and other features that are likely to have floor-local duplicates:
-						-- for now, shops are being handled with a combination TravelDelay interrupt hook and post-runrest hook.
-						-- that approach should notify the player once for every unique shop, when autoexplore travels to its location.
-
-						-- TODO: update this function to properly handle other floor-local duplicate features, if we want to
-						-- notify the player about *every single one*
-
---						move_along = true
---						update_found_kfeats_table(feature, where)
-
-
---						if feature == "altar_okawaru" and goals[1][2] == true then
---							goal_worship[2][2] = true
-
---						if feature == get_current_goal_kfeat() then
---							set_current_goal_kfeat(true)
---						end
+							-- check to see if we've found a goal and need to update the goal table
+							-- this is not implemented yet
+						--if feature == get_current_goal_kfeat() then
+						--	set_current_goal_kfeat(true)
+						--end
 					end
-
 				end
 			end
 		end
@@ -493,56 +453,55 @@ function check_feature_kickbacks()	-- DONE (i think): feature kickbacks were som
 end
 
 -- This function checks if we should disable the script, and return control to the player.
---
+-- This is called at the beginning of ready(), it's important not to issue any commands here.
 function check_kickbacks()
-	-- things we have to scan the crawl.messages() log for, like portal announcements
+	-- check the crawl.messages() log for notifications, like portal announcements
 	check_for_message_log_kickbacks()
 
-	-- interesting features (KFEATS) in local LOS, like altars and branch entries
+	-- look for important KFEATS in visible LOS, like altars and branch entries
 	check_feature_kickbacks()
 
-	-- cumulonimbus, cirrus, altostratus, nacreous...
+	-- are we standing in a dangerous cloud
 	if safe_cloud() == false then kickback("Standing in dangerous cloud: " .. view.cloud_at(0,0)) end
 
-	-- The monster_in_view() function does NOT return player control at every hostile monster.
-	-- It has its own heuristics to only kickback when "dangerous" mons are present,
-	-- this includes checks to see if the monster is high threat, unique, out-of-depth, or has a dangerous weapon.
-	-- This script will autofight against low-threat mons, as long as no other kickback condition is met.
+	-- is there a hostile monster in view, and should we stop for it?
+	-- (monster_in_view() also contains kickback logic for "dangerous" mons, using its own heuristics)
+	-- TODO: revise this logic, and the monster_in_view() logic
 	if monster_in_view(true) then
-		-- status effects, as exposed through you.status()
+		-- stop for status effects, if any hostile monster is present
 		do_player_status_kickbacks()	-- moving status check inside the mons LOS check so it won't kickback with no mons onscreen
 																	-- placing status here might break the script, for effects that root after monsters are dead
-		-- try to keep this above 0
+		-- stop for low HP, if any hostile monster is present
 		if low_hp() then
 			kickback("Low HP")
 		end
 	end
 
--- the hunger check, and its kickback, have been moved further down the main loop for autoexplore interference reasons
---	elseif you.hunger() <= 0 then
---		kickback("Starving")
+	-- TODO: replacement for the above logic
+	-- if there are any hostile monsters in LOS, (return a table of m's, here)
+	-- for each monster in the table, do we have a reason to stop just because of the monster?
+	-- or should we stop because or low HP,
+	-- or should we stop because of status
 
-	-- adders, bees, kobolds with venom...
+	-- are we severely poisoned?
+	-- (we need to check for fatal poison even with no mons in view)
+	-- TODO: revisit if any other status should be pulled out of the mons view check
 	if you.poisoned() then
 		local hp, mhp = you.hp()
 		if (100*you.poison_survival() <= POISON_KICKBACK_THRESHOLD*mhp) then
  			kickback("Severe Poison")				-- i hope you have !curing dude
 		end
-	end		-- why are we not checking this from do_player_status_kickbacks() ? 
-				-- (we need to check for fatal poison even with no mons in view) (possibly some other status should also be pulled out?)
+	end
 
-	-- it's probably that gozag vault you're too poor for anyway
---	if (view.feature_at(0,0) == "enter_shop") and (not move_along) then
---	if (view.feature_at(0,0) == "enter_shop") then
---		autoshop()	-- autoshop() calls sendkeys, doing it from up here in the kickback fn is wrong. TODO: fix this
---		kickback("Found a Shop")
---		move_along = true
---	end		-- I should probably move this inside of check_feature_kickbacks(), too. -- TODO: this, maybe
+	-- For technical reasons, some kickbacks are handled elsewhere in the script:
+	-- Hunger is being checked further down the main ready() loop, to prevent interference with autoexplore.
+	-- Shops are being checked as a combination TravelDelay interrupt and post-runrest hook, to enable items being
+	--  added to the shopping list, before the player sees the shop window open.
 end
 
 
--- probably if i were to pipe all of these into a table from you.status and compare table vals it would be faster
--- than calling all of these fns individually
+-- player status kickbacks
+-- TODO: rewrite this as a table comparison, piped from you.status() ?
 function do_player_status_kickbacks()
 	if you.paralysed() then kickback("Paralysed!!") end
 	if you.confused() then kickback("Confused") end
@@ -561,24 +520,20 @@ function do_player_status_kickbacks()
 		then kickback("Drained!") end
 	local transform = you.transform()
 	-- form strings pulled from form-data.h
-	-- in testing, you.transform() appears to use the third string form (wiz-name), but that might
-	-- just be because I tested the return in wizmode.
-	-- TODO: Make sure this is working properly
+	-- in testing, you.transform() appears to use the third string form in the header (wiz-name)
 	if transform == "bat" then kickback("Hostile polymorph: Batform") end
 	if transform == "pig" then kickback("Hostile polymorph: Pigform (Kirke?)") end
 	if transform == "fungus" then kickback("Hostile polymorph: Fungus") end
 	if transform == "wisp" then kickback("Hostile polymorph: Wisp") end
 	if transform == "tree" then kickback("Treeform: (Did the script auto-quaff !lig ?)") end
 	if you.under_penance() then kickback("Under god penance, maybe the script broke a god conduct?") end
-	-- TODO: verify that these you.stat() comparisons are working properly,
-	--				these fns actually return 2x ints: (current strength), (base strength)
+	-- TODO: fixup these stat-zero checks, I think they aren't working properly
 	local int, mint = you.intelligence()
 	local str, mstr = you.strength()
 	local dex, mdex = you.dexterity()
 	if int <= 0 then kickback("Stat-zero (int)") end		-- galaxy
 	if str <= 0 then kickback("Stat-zero (str)") end
 	if dex <= 0 then kickback("Stat-zero (dex)") end
---	if safe_cloud() == false then kickback("Standing in dangerous cloud: " .. view.cloud_at(0,0)) end
 end
 
 
@@ -679,6 +634,7 @@ function rest()
  crawl.sendkeys("5")
 end
 
+-- TODO: fancier fight logic; at least hit_closest_nomove with throwing checks
 function fight()
  crawl.mpr("Fight!")
  hit_closest()
@@ -687,11 +643,6 @@ end
 function inventory()
 	return iter.invent_iterator:new(items.inventory())
 end
-
--- iter. seems to only partially work with shop_inventory() tables
---function shop()		-- unsafe, don't call this unless the character is standing on a shop at (0,0)
---	return iter.invent_iterator:new(items.shop_inventory())		-- shop_inventory() returns nil if not on a shop
---end
 
 function eat(it)
 	local name = it.name()
@@ -766,6 +717,7 @@ function equip(it)
 	end
 end
 
+-- this function isn't safe to use, it needs it.class() checks
 --function check_inventory_for_first(string)
 --	for it in inventory() do
 --		if it.name():find(string) then
