@@ -982,7 +982,7 @@ function explore()
 		local rc_scroll = nil
 		local wear_id_it = nil
 
-		rc_scroll = check_for_known_rc_scroll()
+		rc_scroll = check_for_known_scroll("remove curse")
 
 		wear_id_it = can_we_wear_id_something()
 
@@ -2551,18 +2551,10 @@ end
 --	return res
 --end		-- spoiler: it didn't work
 
-function check_for_known_id_scroll()
+-- "identify", "remove curse", "enchant armour", etc.
+function check_for_known_scroll(subtype_name)
 	for it in inventory() do
-		if it.class(true) == "scroll" and it.subtype() == "identify" then
-			return it
-		end
-	end
-	return nil
-end
-
-function check_for_known_rc_scroll()
-	for it in inventory() do
-		if it.class(true) == "scroll" and it.subtype() == "remove curse" then
+		if it.class(true) == "scroll" and it.subtype() == subtype_name then
 			return it
 		end
 	end
@@ -2670,7 +2662,7 @@ function can_we_scroll_id_something()
 	end
 
 	local id_scroll = nil
-	id_scroll = check_for_known_id_scroll()
+	id_scroll = check_for_known_scroll("identify")
 
 	local id_target = nil
 	id_target = check_for_scroll_id_target()
@@ -2697,7 +2689,7 @@ function can_we_wear_id_something()
 	local rc_scroll = nil
 
 	equip_target = check_for_wear_id_target()
-	rc_scroll = check_for_known_rc_scroll()
+	rc_scroll = check_for_known_scroll("remove curse")
 
 	if rc_scroll and equip_target then
 --		return rc_scroll, equip_target
@@ -3501,7 +3493,7 @@ function ready()															-- TODO: Try again to get chk_lua_save working.
 			-- (except maybe for QDA)
 
 			local rc_scroll = nil
-			rc_scroll = check_for_known_rc_scroll()
+			rc_scroll = check_for_known_scroll("remove curse")
 
 			if bad_equip and is_slot_cursed(bad_equip) and rc_scroll then
 				read(rc_scroll)
