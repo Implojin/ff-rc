@@ -2792,6 +2792,24 @@ local melee_range_magic = {
 	ranged_skills,
 	magic_skills, }
 
+
+-- skill cost table from skills.cc
+-- can use this to help with autoskilling cost comparisons
+
+--static const int MAX_SKILL_COST_LEVEL = 27;
+--
+--// skill_cost_level makes skills more expensive for more experienced characters
+--int calc_skill_cost(int skill_cost_level)
+--
+--    const int cost[] = { 1, 2, 3, 4, 5,            // 1-5
+--                         7, 8, 9, 13, 22,         // 6-10
+--                         37, 48, 73, 98, 125,      // 11-15
+--                         145, 170, 190, 212, 225,  // 16-20
+--                         240, 255, 260, 265, 265,  // 21-25
+--                         265, 265 };
+
+-- the above indicates (5, 5, 8, 8, 10, 10) might be helpful earlygame order for scripted chars?
+
 local skilling_goals = {		-- initial attempt at skilling order modelled after the postgame skilling dump of a sample MiMo I ran
 --	{"Unarmed Combat", 7},		-- {offense, 7} -- figure out how to write this, it's late and i'm tired
 	{"melee", 7},
@@ -2826,6 +2844,42 @@ local skilling_goals = {		-- initial attempt at skilling order modelled after th
 	{"Shields", 20},
 	{"Invocations", 20}, }	-- adding this at the end for now to delay onset of empty skill table user prompts in Zot
 -- yeah it's late and i'm tired, TODO: fixup this logic
+
+local skilling_goals_test = {
+	{"melee", 5},
+	{"Fighting", 5},
+	{"melee", 8},
+	{"Fighting", 8},
+	{"Dodging", 5},
+	{"melee", 9},
+	{"Fighting", 9},
+	{"Dodging", 8},
+	{"melee", 10},
+	{"Fighting", 10},
+	{"Invocations", 8},
+	{"Shields", 4},
+	{"Armour", 8},
+	{"melee", 12},
+	{"Fighting", 12},
+	{"melee", 14},
+	{"Fighting", 14},
+	{"Dodging", 12},
+	{"Armour", 10},
+	{"melee", 16},
+	{"Fighting", 16},
+	{"Shields", 10},
+	{"Dodging", 16},
+	{"melee", 20},
+	{"Fighting", 20},
+	{"Dodging", 20},
+	{"Armour", 16},
+	{"melee", 22},
+	{"Fighting", 22},
+	{"Shields", 16},
+	{"Dodging", 22},
+	{"Armour", 22},
+	{"Shields", 20},
+	{"Invocations", 20}, }
 
 function get_best_damage_skill()
 	local damage_skill = "Fighting"		-- i think? every species can train Fighting? this logic needs rewrite if not, 
@@ -2893,7 +2947,8 @@ end
 
 -- v2, melee substitutions
 function get_best_skill_target()
-	for _, sktars in ipairs(skilling_goals) do
+--	for _, sktars in ipairs(skilling_goals) do
+	for _, sktars in ipairs(skilling_goals_test) do
 		if you.base_skill(skwrap(sktars[1])) < sktars[2] then
 			if you.can_train_skill(skwrap(sktars[1])) then
 				return skwrap(sktars[1]), sktars[2]
