@@ -667,6 +667,16 @@ function read(it)
 	end
 end
 
+function quaff(it)
+	local itname = it.name()
+	if it.class(true) == "potion" then
+		crawl.mpr("Quaffing potion: " .. itname)
+		crawl.sendkeys("q" .. items.index_to_letter(it.slot))
+	else
+		crawl.mpr("Couldn't quaff potion, is it the wrong item class? : " .. itname)
+	end
+end
+
 function scroll_identify(scroll, it)
 	local scname = scroll.name()
 	local itname = it.name()
@@ -2609,6 +2619,16 @@ function check_for_known_scroll(subtype_name)
 	return nil
 end
 
+-- "experience", "heal wounds", "resistance", "berserk rage", etc.
+function check_for_known_potion(subtype_name)
+	for it in inventory() do
+		if it.class(true) == "potion" and it.subtype() == subtype_name then
+			return it
+		end
+	end
+	return nil
+end
+
 function check_for_amulet_id_target()
 	for it in inventory() do
 		if it.class(true) == "jewellery" and not it.fully_identified and it.name():find("amulet") then
@@ -3742,12 +3762,17 @@ function ready()															-- TODO: Try again to get chk_lua_save working.
 			local acq_scroll = nil
 			acq_scroll = check_for_known_scroll("acquirement")
 
+			local exp_potion = nil
+			exp_potion = check_for_known_potion("experience")
+
 			if bad_equip and is_slot_cursed(bad_equip) and rc_scroll then
 				read(rc_scroll)
 			elseif bad_equip and not is_slot_cursed(bad_equip) then
 				drop(bad_equip)
 			elseif acq_scroll then
 				acquire(acq_scroll)
+			elseif exp_potion then
+				quaff(exp_potion)
 			elseif id_thing then
 				scroll_identify(id_scroll, id_thing)
 			elseif junk then 
