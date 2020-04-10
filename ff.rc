@@ -52,6 +52,9 @@ macros += M \{9} ===toggle_auto
 #bindkey = [1] CMD_NO_CMD_DEFAULT
 macros += M \{-1073741882} ===mpr_item_debug
 
+macros += M \{-1073741884} ===are_we_standing_on_a_valid_altar
+macros += M \{-1073741885} ===echo_kfeats_table
+
 tile_update_rate = 50
 tile_runrest_rate = 50
 travel_delay = 1
@@ -103,6 +106,11 @@ easy_unequip = true
 ## If you are declaring a table, the closing brace cannot be the only thing on its line.
 ## I'm pretty sure this is the reason qw's tables all have "--hack" following the closing brace.
 {
+
+local target_gods_table = {
+	"oka", }
+--	"trog", }
+
 --m:attitude() enums
 --local ATT_FRIENDLY = 4
 local ATT_NEUTRAL = 1
@@ -440,12 +448,12 @@ function check_feature_kickbacks()
 				if feature == v[1] and v[2] then
 				-- if we've already found this feature on the current floor, then don't kickback
 					if update_found_kfeats_table(feature, where) then
-						kickback("Pause for important dungeon feature: " .. feature)
-							-- check to see if we've found a goal and need to update the goal table
-							-- this is not implemented yet
-						--if feature == get_current_goal_kfeat() then
-						--	set_current_goal_kfeat(true)
-						--end
+						if feature:find("altar") and (c_persist.HAVE_GOD or you.branch() == "Temple") then
+							-- don't kickback for altars if we already have a god or if we're in Temple 
+							-- (we still record these in the kfeats table above)
+						else
+							kickback("Pause for important dungeon feature: " .. feature)
+						end
 					end
 				end
 			end
@@ -832,7 +840,7 @@ local aux_slot_names_table = {
 	"Gloves",
 	"Cloak", }
 
--- technically, we should probably be enchanting body armour before cloaks now, but it's not a big deal
+-- technically, we should probably be enchanting body armour before cloaks now that scarves exist, but it's not a big deal
 local body_armour_slot_name_table = {
 	"Armour", }
 
@@ -1004,6 +1012,819 @@ local last_explore_turn = nil
 -- this assumes the player doesn't rebind CMD_EXPLORE while playing
 local explore_keybind = crawl.get_command("CMD_EXPLORE")
 
+
+function set_current_goal(new_goal_string)
+	c_persist.CURRENT_GOAL = new_goal_string
+end
+
+if c_persist.CURRENT_GOAL == nil then
+	set_current_goal("goal_god")
+end
+
+function get_current_goal()
+	return c_persist.CURRENT_GOAL
+end
+
+-- god name strings pulled from religion.cc, string god_name()
+--    case GOD_NO_GOD:        return "No God";
+--    case GOD_RANDOM:        return "random";
+--    case GOD_NAMELESS:      return "nameless";
+--    case GOD_ZIN:           return "Zin";
+--    case GOD_SHINING_ONE:   return "the Shining One";
+--    case GOD_KIKUBAAQUDGHA: return "Kikubaaqudgha";
+--    case GOD_YREDELEMNUL:   return "Yredelemnul";
+--    case GOD_VEHUMET:       return "Vehumet";
+--    case GOD_OKAWARU:       return "Okawaru";
+--    case GOD_MAKHLEB:       return "Makhleb";
+--    case GOD_SIF_MUNA:      return "Sif Muna";
+--    case GOD_TROG:          return "Trog";
+--    case GOD_NEMELEX_XOBEH: return "Nemelex Xobeh";
+--    case GOD_ELYVILON:      return "Elyvilon";
+--    case GOD_LUGONU:        return "Lugonu";
+--    case GOD_BEOGH:         return "Beogh";
+--    case GOD_FEDHAS:        return "Fedhas";
+--    case GOD_CHEIBRIADOS:   return "Cheibriados";
+--    case GOD_XOM:           return "Xom";
+--    case GOD_ASHENZARI:     return "Ashenzari";
+--    case GOD_DITHMENOS:     return "Dithmenos";
+--    case GOD_GOZAG:         return "Gozag";
+--    case GOD_QAZLAL:        return "Qazlal";
+--    case GOD_RU:            return "Ru";
+--#if TAG_MAJOR_VERSION == 34
+--    case GOD_PAKELLAS:      return "Pakellas";
+--#endif
+--    case GOD_USKAYAW:       return "Uskayaw";
+--    case GOD_HEPLIAKLQANA:  return "Hepliaklqana";
+--    case GOD_WU_JIAN:     return "Wu Jian";
+--    case GOD_JIYVA: // This is handled at the beginning of the function
+--    case GOD_ECUMENICAL:    return "an unknown god";
+--    case NUM_GODS:          return "Buggy";
+--
+--    string name = "Jiyva";
+
+-- altar data pulled from feature-data.h, #define ALTAR
+-- {"kfeat_name", "ff.rc abbrev for local godname table", "crawl godname", "altar kfeat long description for ^f in-game"}
+local altar_kfeats_table = {
+	{"unknown_altar", "", "", "detected altar"},
+	{"altar_zin", "zin", "Zin", "glowing silver altar of Zin"},
+	{"altar_the_shining_one", "tso", "the Shining One", "glowing golden altar of the Shining One"},
+	{"altar_kikubaaqudgha", "kiku", "Kikubaaqudgha", "ancient bone altar of Kikubaaqudgha"},
+	{"altar_yredelemnul", "yred", "Yredelemnul", "basalt altar of Yredelemnul"},
+	{"altar_xom", "xom", "Xom", "shimmering altar of Xom"},
+	{"altar_vehumet", "veh", "Vehumet", "radiant altar of Vehumet"},
+	{"altar_okawaru", "oka", "Okawaru", "iron altar of Okawaru"},
+	{"altar_makhleb", "makh", "Makhleb", "burning altar of Makhleb"},
+	{"altar_sif_muna", "sif", "Sif Muna", "shimmering blue altar of Sif Muna"},
+	{"altar_trog", "trog", "Trog", "bloodstained altar of Trog"},
+	{"altar_nemelex_xobeh", "nem", "Nemelex Xobeh", "sparkling altar of Nemelex Xobeh"},
+	{"altar_elyvilon", "ely", "Elyvilon", "white marble altar of Elyvilon"},
+	{"altar_lugonu", "lucy", "Lugonu", "corrupted altar of Lugonu"},
+	{"altar_beogh", "beogh", "Beogh", "roughly hewn altar of Beogh"},
+	{"altar_jiyva", "jiyva", "Jiyva", "viscous altar of Jiyva"},
+	{"altar_fedhas", "fedhas", "Fedhas", "blossoming altar of Fedhas"},
+	{"altar_cheibriados", "chei", "Cheibriados", "snail-covered altar of Cheibriados"},
+	{"altar_ashenzari", "ash", "Ashenzari", "shattered altar of Ashenzari"},
+	{"altar_dithmenos", "dith", "Dithmenos", "shadowy altar of Dithmenos"},
+	{"altar_gozag", "gozag", "Gozag", "opulent altar of Gozag"},
+	{"altar_qazlal", "qaz", "Qazlal", "stormy altar of Qazlal"},
+	{"altar_ru", "ru", "Ru", "sacrificial altar of Ru"},
+	{"altar_ecumenical", "", "an unknown god", "faded altar of an unknown god"},
+--	{"altar_pakellas", "pak", "Pakellas", "oddly glowing altar of Pakellas"},	-- old ver
+	{"altar_uskayaw", "usk", "Uskayaw", "hide-covered altar of Uskayaw"},
+	{"altar_hepliaklqana", "hep", "Hepliaklqana", "hazy altar of Hepliaklqana"},
+	{"altar_wu_jian", "wjc", "Wu Jian", "ornate altar of the Wu Jian Council"}, }
+
+-- target_gods_table is at the top of this file for ease of player access
+function is_valid_target_god_kfeat(local_kfeat)
+	for _,which_god in ipairs(target_gods_table) do
+		for _,which_kfeat in ipairs(altar_kfeats_table) do
+			if string.lower(which_god) == which_kfeat[2] or string.lower(which_god) == "random" then
+				if local_kfeat == which_kfeat[1] then
+					crawl.mpr("local kfeat is a valid altar")
+					return true
+				end
+			end
+		end
+	end
+
+	crawl.mpr("local kfeat is not a valid altar")
+	return false
+end
+
+function are_we_standing_on_a_valid_altar()
+	return is_valid_target_god_kfeat(view.feature_at(0,0))
+end
+
+-- this will return nil if there are no matches in the target_gods_table, be careful!
+function get_valid_god_kfeats()
+	local valid_altars = {}
+
+	for _,which_god in ipairs(target_gods_table) do
+		for _,which_kfeat in ipairs(altar_kfeats_table) do
+			if string.lower(which_god) == which_kfeat[2] then
+				table.insert(valid_altars, which_kfeat[1])
+			end
+		end
+	end
+
+	return valid_altars
+end
+
+function get_valid_gods()
+	local valid_gods = {}
+
+	for _,which_god in ipairs(target_gods_table) do
+		for _,entry in ipairs(altar_kfeats_table) do
+			if string.lower(which_god) == entry[2] then
+				table.insert(valid_gods, entry[3])
+			end
+		end
+	end
+
+	return valid_gods
+end
+
+function have_target_god()
+	if you.race() == "Demigod" then return true end
+	local you_god = you.god()
+	local valid_gods = get_valid_gods()
+
+	for _,entry in ipairs(valid_gods) do
+		if you_god == entry then
+			return true
+		end
+	end
+
+	return false
+end
+
+function reset_strategic_goal_flags()
+	c_persist.HAVE_GOD = false
+	c_persist.CLEARED_TEMPLE = false
+	c_persist.CLEARED_LAIR = false
+	c_persist.CLEARED_ORC = false
+	c_persist.CLEARED_DUNGEON = false
+	c_persist.LAIRBRANCHES = nil
+	c_persist.CLEARED_LAIRBRANCH_1 = false
+	c_persist.CLEARED_LAIRBRANCH_2 = false
+	c_persist.CLEARED_VAULTS_4 = false
+	c_persist.CLEARED_DEPTHS = false
+	c_persist.CLEARED_VAULTS = false
+	c_persist.CLEARED_ZOT = false
+	c_persist.HAVE_ORB = false
+
+end
+
+-- TODO: table-ize all of these, this code is really dumb
+function initialize_strategic_goal_flags()
+	if c_persist.HAVE_GOD == nil then
+		c_persist.HAVE_GOD = false
+	end
+	if c_persist.CLEARED_TEMPLE == nil then
+		c_persist.CLEARED_TEMPLE = false
+	end
+	if c_persist.CLEARED_LAIR == nil then
+		c_persist.CLEARED_LAIR = false
+	end
+	if c_persist.CLEARED_ORC == nil then
+		c_persist.CLEARED_ORC = false
+	end
+	if c_persist.CLEARED_DUNGEON == nil then
+		c_persist.CLEARED_DUNGEON = false
+	end
+	if c_persist.CLEARED_LAIRBRANCH_1 == nil then
+		c_persist.CLEARED_LAIRBRANCH_1 = false
+	end
+	if c_persist.CLEARED_LAIRBRANCH_2 == nil then
+		c_persist.CLEARED_LAIRBRANCH_1 = false
+	end
+	if c_persist.CLEARED_VAULTS_4 == nil then
+		c_persist.CLEARED_VAULTS_4 = false
+	end
+	if c_persist.CLEARED_DEPTHS == nil then
+		c_persist.CLEARED_DEPTHS = false
+	end
+	if c_persist.CLEARED_VAULTS == nil then
+		c_persist.CLEARED_VAULTS = false
+	end
+	if c_persist.CLEARED_ZOT == nil then
+		c_persist.CLEARED_ZOT = false
+	end
+	if c_persist.HAVE_ORB == nil then
+		c_persist.HAVE_ORB = false
+	end
+
+end
+
+function fn_goal_god()
+	-- have_religion, set next major goal
+	if you.race() == "Demigod" or have_target_god() == true then
+		c_persist.HAVE_GOD = true
+		set_current_goal("goal_lair")
+		crawl.mpr("goal_god complete! setting goal_lair.")
+		crawl.sendkeys(".")
+		return true
+	end
+	-- crawl.do_commands({CMD_NO_CMD_DEFAULT}) doesn't work properly for scripted non-actions intended to end the turn (as above);
+	-- it processes as no command for the turn and ready() completes with auto() still active, 
+	-- but the turn doesn't finish and the game continues to wait for player input.
+	-- I probably need to bind CMD_NO_CMD_DEFAULT to something and sendkeys that if I want the script to continue here:
+	-- (Using "." wastes an in-game turn and isn't ideal.)
+	-- TODO: replace all crawl.sendkeys(".") in the fn_goal functions with a sendkeys bound to CMD_NO_CMD_DEFAULT?
+
+	-- pray_altar
+	if is_valid_target_god_kfeat(view.feature_at(0,0)) then
+		crawl.sendkeys(">" .. string.char(13))
+		return true
+	end
+
+	local valid_god_kfeats = get_valid_god_kfeats()
+
+	-- if found_altar, travel_altar
+	for _,entry in ipairs(c_persist.FOUND_KFEATS_TABLE) do
+		for _,valid_altar in ipairs(valid_god_kfeats) do
+			if entry[1] == valid_altar then
+				local god_altar_string = nil
+				for _,gods in ipairs(altar_kfeats_table) do
+					if entry[1] == gods[1] then
+						god_altar_string = gods[4]
+					end
+				end
+
+				crawl.mpr("Trying to travel to altar: " .. god_altar_string)
+				crawl.sendkeys("*f" .. god_altar_string .. string.char(13) .. "a" .. string.char(13))
+				return true
+			end
+		end
+	end
+
+	-- if cleared_temple, exit_temple
+	if you.branch() == "Temple" and not c_persist.CLEARED_TEMPLE then
+		c_persist.CLEARED_TEMPLE = true
+		crawl.mpr("Leaving Temple, target god altar not found. (Overflow?)")
+		crawl.sendkeys("GD" .. string.char(13))
+		return true
+	end
+
+	-- if found_temple and not cleared_temple, enter_temple
+	for _,entry in ipairs(c_persist.FOUND_KFEATS_TABLE) do
+		if entry[1] == "enter_temple" and not c_persist.CLEARED_TEMPLE then
+			crawl.mpr("Trying to travel to Temple.")
+			crawl.sendkeys("GT" .. string.char(13))
+			return true
+		end
+	end
+
+	-- else, go downstairs
+	crawl.mpr("Going Down!")
+	crawl.sendkeys("G>")
+	return false
+end
+
+function fn_goal_lair()
+	-- cleared_lair, set next major goal
+	if c_persist.CLEARED_LAIR == true then
+		set_current_goal("goal_orc")
+		crawl.mpr("goal_lair complete! setting goal_orc.")
+		crawl.sendkeys(".")
+		return true
+	end
+
+	-- if found_lair and not in_lair, enter_lair
+	if you.branch() ~= "Lair" then
+		for _,entry in ipairs(c_persist.FOUND_KFEATS_TABLE) do
+			if entry[1] == "enter_lair" and not c_persist.CLEARED_LAIR then
+				crawl.mpr("Trying to travel to Lair.")
+				crawl.sendkeys("GL" .. string.char(13))
+				return true
+			end
+		end
+	end
+
+	-- if cleared lair, set cleared_lair
+	-- TODO: "if not you_shafted()"
+	if you.where() == "Lair:6" then
+		c_persist.CLEARED_LAIR = true
+		crawl.mpr("Cleared lair!")
+		crawl.sendkeys(".")
+		return true
+	end
+
+	-- if we're in deep D and we haven't found Lair, kickback
+	if you.branch() == "D" and you.depth() > 11 then
+		kickback("Failed to find Lair entry. (Maybe it's in a disconnected area?)")
+		crawl.sendkeys(".")
+		return false
+	end
+
+	-- if we're still in Temple, go back to D
+	if you.branch() == "Temple" then
+		crawl.mpr("Trying to travel to Dungeon.")
+		crawl.sendkeys("GD" .. string.char(13))
+	end
+
+	-- else, go downstairs
+	crawl.mpr("Going Down!")
+	crawl.sendkeys("G>")
+	return false
+end
+
+function fn_goal_orc()
+	-- cleared_orc, set next major goal
+	if c_persist.CLEARED_ORC == true then
+		set_current_goal("goal_d15")
+		crawl.mpr("goal_orc complete! setting goal_d15.")
+		crawl.sendkeys(".")
+		return true
+	end
+
+	-- if found_orc and not in_orc, enter_orc
+	if you.branch() ~= "Orc" then
+		for _,entry in ipairs(c_persist.FOUND_KFEATS_TABLE) do
+			if entry[1] == "enter_orcish_mines" and not c_persist.CLEARED_ORC then
+				crawl.mpr("Trying to travel to Orc.")
+				crawl.sendkeys("GO" .. string.char(13))
+				return true
+			end
+		end
+	end
+
+	-- if cleared orc, set cleared_orc
+	-- TODO: "if not you_shafted()"
+	if you.where() == "Orc:2" then
+		c_persist.CLEARED_ORC = true
+		crawl.mpr("Cleared orc!")
+		crawl.sendkeys(".")
+		return true
+	end
+
+	-- if we're in deep D and we haven't found Orc, kickback
+	if you.branch() == "D" and you.depth() > 12 then
+		kickback("Failed to find Orc entry. (Maybe it's in a disconnected area?)")
+		crawl.sendkeys(".")
+		return false
+	end
+
+	-- if we're still in Lair, go back to D
+	if you.branch() == "Lair" then
+		crawl.mpr("Trying to travel to Dungeon.")
+		crawl.sendkeys("GD" .. string.char(13))
+	end
+
+	-- else, go downstairs
+	crawl.mpr("Going Down!")
+	crawl.sendkeys("G>")
+	return false
+end
+
+function fn_goal_d15()
+	-- cleared_dungeon, set next major goal
+	if c_persist.CLEARED_DUNGEON == true then
+		set_current_goal("goal_s1")
+		crawl.mpr("goal_d15 complete! setting goal_s1.")
+		crawl.sendkeys(".")
+		return true
+	end
+
+	-- if not in_d, enter_d
+	if you.branch() ~= "D" and not c_persist.CLEARED_DUNGEON then
+		crawl.mpr("Trying to travel to D.")
+		crawl.sendkeys("GD" .. string.char(13))
+		return true
+	end
+
+	-- if cleared dungeon, set cleared_dungeon
+	-- TODO: "if not you_shafted()"
+	if you.where() == "D:15" then
+		c_persist.CLEARED_DUNGEON = true
+		crawl.mpr("Cleared Dungeon!")
+		crawl.sendkeys(".")
+		return true
+	end
+
+	-- else, go downstairs
+	crawl.mpr("Going Down!")
+	crawl.sendkeys("G>")
+	return false
+end
+
+-- rune names sourced from item-name.cc, rune_type_name()
+--    case RUNE_DIS:         return "iron";
+--    case RUNE_GEHENNA:     return "obsidian";
+--    case RUNE_COCYTUS:     return "icy";
+--    case RUNE_TARTARUS:    return "bone";
+--    case RUNE_SLIME:       return "slimy";
+--    case RUNE_VAULTS:      return "silver";
+--    case RUNE_SNAKE:       return "serpentine";
+--    case RUNE_ELF:         return "elven";
+--    case RUNE_TOMB:        return "golden";
+--    case RUNE_SWAMP:       return "decaying";
+--    case RUNE_SHOALS:      return "barnacled";
+--    case RUNE_SPIDER:      return "gossamer";
+--    case RUNE_FOREST:      return "mossy";
+--
+--    // pandemonium and abyss runes:
+--    case RUNE_DEMONIC:     return "demonic";
+--    case RUNE_ABYSSAL:     return "abyssal";
+--
+--    // special pandemonium runes:
+--    case RUNE_MNOLEG:      return "glowing";
+--    case RUNE_LOM_LOBON:   return "magical";
+--    case RUNE_CEREBOV:     return "fiery";
+--    case RUNE_GLOORX_VLOQ: return "dark";
+--    default:               return "buggy";
+
+-- these are in order of rough preference so we don't have to sort the table later
+-- TODO: check for branch preference by available character resistances?
+local lairbranch_prefs = {
+	{"Snake", "enter_snake_pit", "P", "serpentine"},
+	{"Swamp", "enter_swamp", "S", "decaying"},
+	{"Spider", "enter_spider_nest", "N", "gossamer"},
+	{"Shoals", "enter_shoals", "A", "barnacled"}, }
+
+function get_lairbranch_table()
+	local lairbranches = {}
+
+	for _,which_branch in ipairs(lairbranch_prefs) do
+		for _,entry in ipairs(c_persist.FOUND_KFEATS_TABLE) do
+			if entry[1] == which_branch[2] then
+				table.insert(lairbranches, which_branch)
+			end
+		end
+	end
+
+	return lairbranches
+end
+
+function fn_goal_s1()
+	if c_persist.LAIRBRANCHES == nil then
+		c_persist.LAIRBRANCHES = get_lairbranch_table()
+	end
+
+	-- cleared_s1, set next major goal
+	if c_persist.CLEARED_LAIRBRANCH_1 == true then
+		set_current_goal("goal_s2")
+		crawl.mpr("goal_s1 complete! setting goal_s2.")
+		crawl.sendkeys(".")
+		return true
+	end
+
+	-- if found_s1 and not in_s1, enter_s1
+	if you.branch() ~= c_persist.LAIRBRANCHES[1][1] then
+		for _,entry in ipairs(c_persist.FOUND_KFEATS_TABLE) do
+			if entry[1] == c_persist.LAIRBRANCHES[1][2] and not c_persist.CLEARED_LAIRBRANCH_1 then
+				crawl.mpr("Trying to travel to " .. c_persist.LAIRBRANCHES[1][1] .. ".")
+				crawl.sendkeys("G" .. c_persist.LAIRBRANCHES[1][3] .. string.char(13))
+				return true
+			end
+		end
+	end
+
+	-- if found rune_s1, set cleared_s1
+	if you.have_rune(c_persist.LAIRBRANCHES[1][4]) then
+		c_persist.CLEARED_LAIRBRANCH_1 = true
+		crawl.mpr("Cleared " .. c_persist.LAIRBRANCHES[1][1] .. "!")
+		crawl.sendkeys(".")
+		return true
+	end
+
+	-- if we've cleared branch_s1 and we haven't found rune_s1, kickback
+	if you.branch() == c_persist.LAIRBRANCHES[1][1] and you.depth() == 4 then
+		kickback("Failed to find " .. c_persist.LAIRBRANCHES[1][4] .. " rune. (Maybe it's in a disconnected area?)")
+		crawl.sendkeys(".")
+		return false
+	end
+
+	-- else, go downstairs
+	crawl.mpr("Going Down!")
+	crawl.sendkeys("G>")
+	return false
+end
+
+function fn_goal_s2()
+	if c_persist.LAIRBRANCHES == nil then
+		c_persist.LAIRBRANCHES = get_lairbranch_table()
+	end
+
+	-- cleared_s2, set next major goal
+	if c_persist.CLEARED_LAIRBRANCH_2 == true then
+		set_current_goal("goal_v4")
+		crawl.mpr("goal_s2 complete! setting goal_v4.")
+		crawl.sendkeys(".")
+		return true
+	end
+
+	-- if found_s2 and not in_s2, enter_s2
+	if you.branch() ~= c_persist.LAIRBRANCHES[2][1] then
+		for _,entry in ipairs(c_persist.FOUND_KFEATS_TABLE) do
+			if entry[1] == c_persist.LAIRBRANCHES[2][2] and not c_persist.CLEARED_LAIRBRANCH_2 then
+				crawl.mpr("Trying to travel to " .. c_persist.LAIRBRANCHES[2][1] .. ".")
+				crawl.sendkeys("G" .. c_persist.LAIRBRANCHES[2][3] .. string.char(13))
+				return true
+			end
+		end
+	end
+
+	-- if found rune_s2, set cleared_s2
+	if you.have_rune(c_persist.LAIRBRANCHES[2][4]) then
+		c_persist.CLEARED_LAIRBRANCH_2 = true
+		crawl.mpr("Cleared " .. c_persist.LAIRBRANCHES[2][1] .. "!")
+		crawl.sendkeys(".")
+		return true
+	end
+
+	-- if we've cleared branch_s2 and we haven't found rune_s2, kickback
+	if you.branch() == c_persist.LAIRBRANCHES[2][1] and you.depth() == 4 then
+		kickback("Failed to find " .. c_persist.LAIRBRANCHES[2][4] .. " rune. (Maybe it's in a disconnected area?)")
+		crawl.sendkeys(".")
+		return false
+	end
+
+	-- else, go downstairs
+	crawl.mpr("Going Down!")
+	crawl.sendkeys("G>")
+	return false
+end
+
+function fn_goal_v4()
+	-- cleared_v4, set next major goal
+	if c_persist.CLEARED_VAULTS_4 == true then
+		set_current_goal("goal_u")
+		crawl.mpr("goal_v4 complete! setting goal_u.")
+		crawl.sendkeys(".")
+		return true
+	end
+
+	-- if found_v and not in_v, enter_v
+	if you.branch() ~= "Vaults" then
+		for _,entry in ipairs(c_persist.FOUND_KFEATS_TABLE) do
+			if entry[1] == "enter_vaults" and not c_persist.CLEARED_VAULTS_4 then
+				crawl.mpr("Trying to travel to Vaults.")
+				crawl.sendkeys("GV" .. string.char(13))
+				return true
+			end
+		end
+	end
+
+	-- if cleared v4, set cleared_v4
+	if you.branch() == "Vaults" and you.depth() == 4 then
+		c_persist.CLEARED_VAULTS_4 = true
+		crawl.mpr("Cleared Vaults:4.")
+		crawl.sendkeys(".")
+		return true
+	end
+
+	-- if found rune_v, set cleared_v
+	-- this doesn't *quite* belong here, but maybe later if I change the dive behavior
+	if you.have_rune("silver") then
+		c_persist.CLEARED_VAULTS = true
+		crawl.mpr("Cleared Vaults!")
+		crawl.sendkeys(".")
+		return true
+	end
+
+	-- else, go downstairs
+	crawl.mpr("Going Down!")
+	crawl.sendkeys("G>")
+	return false
+end
+
+function fn_goal_u()
+	-- cleared_u, set next major goal
+	if c_persist.CLEARED_DEPTHS == true then
+		set_current_goal("goal_v5")
+		crawl.mpr("goal_u complete! setting goal_v5.")
+		crawl.sendkeys(".")
+		return true
+	end
+
+	-- if found_u and not in_u, enter_u
+	if you.branch() ~= "Depths" then
+		for _,entry in ipairs(c_persist.FOUND_KFEATS_TABLE) do
+			if entry[1] == "enter_depths" and not c_persist.CLEARED_DEPTHS then
+				crawl.mpr("Trying to travel to Depths.")
+				crawl.sendkeys("GU" .. string.char(13))
+				return true
+			end
+		end
+	end
+
+	-- if cleared u, set cleared_u
+	if you.branch() == "Depths" and you.depth() == 5 then
+		c_persist.CLEARED_DEPTHS = true
+		crawl.mpr("Cleared Depths:5.")
+		crawl.sendkeys(".")
+		return true
+	end
+
+	-- else, go downstairs
+	crawl.mpr("Going Down!")
+	crawl.sendkeys("G>")
+	return false
+end
+
+function fn_goal_v5()
+	-- cleared_v5, set next major goal
+	if c_persist.CLEARED_VAULTS == true then
+		set_current_goal("goal_zot")
+		crawl.mpr("goal_v5 complete! setting goal_zot.")
+		crawl.sendkeys(".")
+		return true
+	end
+
+	-- if found_v and not in_v, enter_v
+	if you.branch() ~= "Vaults" then
+		for _,entry in ipairs(c_persist.FOUND_KFEATS_TABLE) do
+			if entry[1] == "enter_vaults" and not c_persist.CLEARED_VAULTS then
+				crawl.mpr("Trying to travel to Vaults.")
+				crawl.sendkeys("GV" .. string.char(13))
+				return true
+			end
+		end
+	end
+
+	-- if found rune_v, set cleared_v
+	if you.have_rune("silver") then
+		c_persist.CLEARED_VAULTS = true
+		crawl.mpr("Cleared Vaults!")
+		crawl.sendkeys(".")
+		return true
+	end
+
+	-- else, go downstairs
+	crawl.mpr("Going Down!")
+	crawl.sendkeys("G>")
+	return false
+end
+
+function fn_goal_zot()
+	-- cleared_zot, set next major goal
+	if c_persist.CLEARED_ZOT == true then
+		set_current_goal("goal_orb_pickup")
+		crawl.mpr("goal_zot complete! setting goal_orb_pickup.")
+		crawl.sendkeys(".")
+		return true
+	end
+
+	-- if found_zot and not in_zot, enter_zot
+	if you.branch() ~= "Zot" then
+		for _,entry in ipairs(c_persist.FOUND_KFEATS_TABLE) do
+			if entry[1] == "enter_zot" and not c_persist.CLEARED_ZOT then
+				crawl.mpr("Trying to travel to Zot.")
+				crawl.sendkeys("GZ" .. string.char(13))
+				return true
+			end
+		end
+	end
+
+	-- if cleared zot, set cleared_zot
+	if you.branch() == "Zot" and you.depth() == 5 then
+		c_persist.CLEARED_ZOT = true
+		crawl.mpr("Cleared Zot:5.")
+		crawl.sendkeys(".")
+		return true
+	end
+
+	-- else, go downstairs
+	crawl.mpr("Going Down!")
+	crawl.sendkeys("G>")
+	return false
+end
+
+-- Zot:5 should already be clear by the time we're calling this function
+function fn_goal_orb_pickup()
+	-- have_orb, set next major goal
+	if c_persist.HAVE_ORB == true then
+		set_current_goal("goal_orbrun")
+		crawl.mpr("goal_orb_pickup complete! setting goal_orbrun.")
+		crawl.sendkeys(".")
+		return true
+	end
+
+--	-- if found_zot and not in_zot, enter_zot
+--	if you.branch() ~= "Zot" then
+--		for _,entry in ipairs(c_persist.FOUND_KFEATS_TABLE) do
+--			if entry[1] == "enter_zot" and not c_persist.CLEARED_ZOT then
+--				crawl.mpr("Trying to travel to Zot.")
+--				crawl.sendkeys("GZ" .. string.char(13))
+--				return true
+--			end
+--		end
+--	end
+
+	-- if have orb, set orbrun
+	if you.have_orb() then
+		c_persist.HAVE_ORB = true
+		crawl.mpr("Picked up the Orb.")
+		crawl.sendkeys(".")
+		return true
+	end
+
+	local local_stuff = items.get_items_at(0,0)
+
+	if local_stuff then
+		for _,it in ipairs(local_stuff) do
+			if it.name():find("Orb of Zot") then
+				crawl.mpr("Trying to pickup the Orb.")
+				-- i don't know why items.pickup isn't working here
+--				items.pickup(it)
+--				crawl.sendkeys("g" .. items.index_to_letter(it.slot) .. string.char(13))
+--					items.pickup({it,1})
+				crawl.sendkeys("ga" .. string.char(13))		-- dumb workaround, this will break if the orb isn't in floor slot 'a'
+				return true
+			end
+		end
+	end
+
+	-- else, ^F the orb and go there
+	crawl.mpr("Trying to travel to the Orb...")
+	crawl.sendkeys("*f" .. "Orb of Zot" .. string.char(13) .. "a" .. string.char(13))
+	return false
+
+--	-- else, go downstairs
+--	crawl.mpr("Going Down!")
+--	crawl.sendkeys("G>")
+--	return false
+end
+
+local ORBRUN_REST_THRESHOLD = 70
+
+function orbrun_rest_check()
+	local hp, mhp = you.hp()
+	return (hp*100 < mhp*ORBRUN_REST_THRESHOLD)
+end
+
+-- note: orbrun rest ("5") behavior now has its own handler; this does not currently check for MP
+-- TODO: if you rework the script to handle offensive spellcasting, orbrun rest (MP) behavior will need adjustment
+function fn_goal_orbrun()
+	if view.feature_at(0,0) == "exit_dungeon" then
+		crawl.mpr("Ascending! :)")
+		crawl.sendkeys("<")
+		return true
+	end
+
+	if orbrun_rest_check() then
+		if view.feature_at(0,0):find("up") or view.feature_at(0,0):find("exit") then
+			if not monster_in_view() then
+				-- check for ambrosia		-- TODO: this?
+
+				-- breadswing?
+
+				-- okay, just '5' 
+				crawl.sendkeys("5")
+			end
+		end
+	end
+
+	if monster_in_view() then
+		if view.feature_at(0,0):find("up") or view.feature_at(0,0):find("exit") then
+			crawl.sendkeys("<")
+			return true
+		else
+			fight()
+			return true
+		end
+	end
+	if hungry() then
+		try_to_eat()
+		return true
+	end
+
+	if you.where() == "D:1" then
+		crawl.mpr("Trying to go to exit_dungeon.")
+		crawl.sendkeys("X<" .. string.char(13))
+		return true
+	end
+
+		-- else, go to D:1
+	crawl.mpr("Trying to go to D:1 (orbrun)")
+	crawl.sendkeys("GD1" .. string.char(13))
+	return false
+end
+
+local strategic_goal_table = {
+	{"goal_orbrun", fn_goal_orbrun} ,
+	{"goal_orb_pickup", fn_goal_orb_pickup} ,
+	{"goal_zot", fn_goal_zot} ,
+	{"goal_v5", fn_goal_v5} ,
+	{"goal_u", fn_goal_u} ,
+	{"goal_v4", fn_goal_v4} ,
+	{"goal_s2", fn_goal_s2} ,
+	{"goal_s1", fn_goal_s1} ,
+	{"goal_d15", fn_goal_d15} ,
+	{"goal_orc", fn_goal_orc} ,
+	{"goal_lair", fn_goal_lair} ,
+	{"goal_god", fn_goal_god} , }
+
+-- TODO: write an unshaft_self override goal
+function do_current_goal_action()
+	for _,goal in ipairs(strategic_goal_table) do
+		if get_current_goal() == goal[1] then
+			goal[2]()
+		end
+	end
+end
+
 function explore()
 	crawl.mpr("Explore!")
 	move_along = false			-- need to adjust this move_along behavior slightly to prevent KFEAT spam
@@ -1059,30 +1880,17 @@ function explore()
 				read_identify(read_id)
 			end
 		else
-			crawl.mpr("Going Down!")
-			-- the whole kfeat table gets too long to echo here, it wipes out the messages log
-			-- and breaks message kickback handling
---			echo_kfeats_table()		-- debug helper for kfeat goals
---			local travel_cmd = get_current_subgoal_cmd()
-			crawl.sendkeys("G>")
---			crawl.sendkeys(travel_cmd)
+
+			-- this function tracks gamestate and issues "G>", "GT", etc., as appropriate
+			do_current_goal_action()
+
 		end
 	end
 end
 
---		local command = nil
---		command = retrieve_next_floor_travel_command()
---		crawl.sendkeys(command)
---	end
---end
-
 -- local branch = you.branch()	-- D
 -- local depth = you.depth()		-- 1
 -- local brdep = you.where()		-- D:1
-
---local branch_entry_commands = {
---	{"D", "GT", ("GL" .. string.char(13)), ("GO" .. string.char(13)), ("GV" .. string.char(13)), ("GU" .. string.char(13))}
---}
 
 -- note: it's safer to use "G>" than "X>\{13}" because autotravel won't use hatches by mistake
 
@@ -1127,32 +1935,6 @@ end
 --	{"WizLab"},
 --	{"Desolation"},
 --}
-
---local goals = {
---	{"Temple"},
---	{"Lair"},
---	{"Orc"},
---	{"D:15"},
---	{ lairbranch[1] },
---	{ lairbranch[2] },
---	{"Vaults:4"},
---	{"Depths"},
---	{"Vaults:5"},
---	{"Zot"},
---	{"D:1"},
---}
-
---local lairbranch_prefs = {
---	{"Snake"},
---	{"Swamp"},
---	{"Spider"},
---	{"Shoals"},
---}
-
---function retrieve_next_floor_travel_command()
---
---end
-
 
 -- To find a list of portal messages in a DCSS repo, try:
 -- git grep -n "initmsg"
@@ -1498,9 +2280,12 @@ local staff_types = {
 	{"summoning", false},
 	{"bugginess", true}, }		-- sure, why not
 
+-- setting orb autopick to false for now so the Zot goal can do Z:5 without autoexplore prematurely starting the orbrun
 local orb_types = {
-	{nil, true},		-- see items.subtype() limitations below
-	{"orb of Zot", true}, }
+--	{nil, true},		-- see items.subtype() limitations below
+--	{"orb of Zot", true}, }
+	{nil, false},		-- see items.subtype() limitations below
+	{"orb of Zot", false}, }
 
 -- item-name.cc, misc_type_name()
 -- TODO: probably just want to turn all of these misc types off later
@@ -3430,72 +4215,6 @@ function autoshop()
 end
 
 
---local travel_states = {
---	{"altar"},
---	{"temple"},
---	{"d:7"},
---	{"d:11"},
---	{"lair"},
---	{"lair:6"},
---	{"d:12"},
---	{"orc"},
---	{"orc:2"},
---	{"d:15"},
---	{"lairbranch-1"},
---	{"lairbranch-1:4"},
---	{"lairbranch-1-rune"},
---	{"lairbranch-2"},
---	{"lairbranch-2:4"},
---	{"lairbranch-2-rune"},
---	{"vaults"},
---	{"vaults:4"},
---	{"depths"},
---	{"depths:5"},
---	{"vaults:5"},
---	{"zot"},
---	{"zot:5"},
---	{"d:1"},
---	{"exit-dungeon"}, }
-
---local go_altar = { }
-
---local goal_unshaft = { }
--- TODO: figure out how to write this
-
---local altar_name = "iron altar of Okawaru"
-
---local goal_worship = {
---	{"pray_altar", false, "<" .. string.char(13)},
---	{"go_altar", false, "*f" .. altar_name .. string.char(13) .. string.char(13)},
---	{"go_temple", false, "GT" .. string.char(13)},
---	{"go_d7", false, "G>"},		-- ehhh i might need some logic to GD here first or something
---	{"go_d9", false, "G>"},	}	-- overflow altars
-
---local goal_clear_d11 = {
-----	{"clear_d11", false},		-- as written, this doesn't map to a travel goal command...
---	{"go_d11", false, "G>"},
---	{"go_d", false, "GD" .. string.char(13)}, }
-
---local goal_clear_lair = {
-----	{"clear_lair", false},	-- as written, this doesn't map to a travel goal command...
---	{"go_lair_6", false, "G>"},
---	{"go_lair", false, "GL" .. string.char(13)}, }
-
---local goals = {
---	{goal_worship, false},
---	{goal_clear_d11, false},
---	{goal_clear_lair, false},
-----	{clear_orc, false},
-----	{clear_d, false},
-----	{get_a_rune, false},
-----	{get_second_rune, false},
-----	{clear_v4, false},
-----	{get_a_third_rune, false},
-----	{dive_depths, false},
-----	{dive_zot, false},
-----	{clear_z5, false},
-----	{go_win, false}, }
-
 -- if we've found a new interesting kfeat, try to insert it into the found kfeat table,
 -- hopefully ignoring duplicates
 -- returns true if we've inserted a new entry into the table, 
@@ -3536,78 +4255,6 @@ function echo_kfeats_table()		-- debug function, print found kfeats to mpr
 	end
 end
 
-function update_gamestate()
-
-	if you.god() == "No God" or you.race() == "Demigod" then
-		c_persist.GAMESTATE = "worship"
-	end
-
---	for _,goal in ipairs(goals) do
-
---	end
-
-end
-
-
-function get_current_goal_kfeat()
-	for _goal in ipairs(goals) do
-		if goal[2] == true then
-			for _,subgoal in ipairs(goal[1]) do
-				if c_persist.CURRENT_GOAL == subgoal[1] then
-					if subgoal[4] then 
-						return subgoal[4]
-					end
-				end
-			end
-		end
-	end
-	return nil
-end
-
-function clear_goal_flags(goal_table)
-	for _,goal in ipairs(goal_table) do
-		goal[2] = false
-	end
-end
-
-function set_next_goal_flag()
-	local temp = false
-	for _,goal in ipairs(goals) do
-		if temp then 
-			goal[2] = true
-			temp = false
-		end
-		if goal[2] then
-			temp = true
-			goal[2] = false
-		end
-	end
-end
-
-function get_current_subgoal_command()
-	for _, goal in ipairs(goals) do
-		if goal[2] then
-			for _,subgoal in ipairs(goals[1]) do
-				if subgoal[2] then
-					return subgoal[3]
-				end
-			end
-		end
-	end
-end
-
---function init_goals()
---	clear_goal_flags(goals)
---	goals[1][2] = true
---end
-
---for _,goal in ipairs(goals) do
---	if not goal[2] then
---		for _,subgoal in ipairs(goal[1]) do
---		end
---	end
---end
-
 
 ----------------------------------------------------
 ----- crawl Lua hooks and hook overrides below -----
@@ -3625,28 +4272,23 @@ if c_persist.ID_SCROLLS_RECOGNIZED == nil then
 	c_persist.ID_SCROLLS_RECOGNIZED = false
 end
 
---if c_persist.TRAVEL_STATE_TABLE == nil then
---	c_persist.TRAVEL_STATE_TABLE = { }
---end
-
 if c_persist.FOUND_KFEATS_TABLE == nil then
 	c_persist.FOUND_KFEATS_TABLE = { }
 end
+
+-- if c_persist.CLEARED_WHATEVER flags are nil, initialize them
+initialize_strategic_goal_flags()
 
 function choose_stat_gain()
  return "s"
 end
 
+-- skill_training_needed() MUST return true, else its calling fn in skills.cc will always open a user prompt
 function skill_training_needed()
---	autoskill()
---	return true	-- skill_training_needed() MUST return true, else its calling fn in skills.cc will always open a user prompt
-	return autoskill()
+	return autoskill()	-- we are now handling the return from within autoskill()
 end			-- if we return true and have failed to set any training, check_selected_skills() will prompt the user anyway
 
 function auto_experience()	-- hook to auto-distribute potions of experience
---	autoskill()
-	-- do we need a sendkeys(13) here? -- TODO: verify if this is working
---	return true
 	return autoskill()
 end
 
@@ -3680,6 +4322,15 @@ chk_interrupt_activity["travel"] = function (iname, cause, extra)
  		crawl.mpr("chk_interrupt_activity found a shop")
  		return true
 	end
+
+	-- during the orbrun, we also interrupt inter-level travel on upstairs at low HP, so the script can try to rest safely
+	if c_persist.HAVE_ORB then
+		if view.feature_at(0,0):find("up") or view.feature_at(0,0):find("exit") then
+			if orbrun_rest_check() then
+				return true
+			end
+		end
+	end
 end
 
 -- autoshop, as a post-runrest hook, to be run automatically after "travel" delays like CMD_EXPLORE
@@ -3708,7 +4359,8 @@ function ready()															-- TODO: Try again to get chk_lua_save working.
 		c_persist.LAST_ACTION_MARKER = 0					-- I'm only doing it this way because I couldn't get chk_lua_save working.
 		c_persist.FOUND_KFEATS_TABLE = { }
 		autoskill(true)
---		init_goals()
+		reset_strategic_goal_flags()
+		set_current_goal("goal_god")
 	end
 
 	if auto then
@@ -3730,7 +4382,9 @@ function ready()															-- TODO: Try again to get chk_lua_save working.
 --		c_persist.LAST_ACTION_MARKER = (1 + c_persist.LAST_ACTION_MARKER)		-- probably I need to move these up, outside auto and
 --		crawl.mpr("ACTIONMARKER" .. tostring(c_persist.LAST_ACTION_MARKER))	-- just after check_kickbacks() so they run all the time
 --		-- ^^ this has to be visible for the messages() find to work... doesn't look like I can use crawl.dpr ...
-		if monster_in_view() then
+		if c_persist.HAVE_ORB then
+			fn_goal_orbrun()
+		elseif monster_in_view() then
 			fight()
 		elseif hungry() then
 			try_to_eat()
@@ -3750,11 +4404,6 @@ function ready()															-- TODO: Try again to get chk_lua_save working.
 
 			local junk = nil
 			junk = check_for_junk_to_drop()
-
-			-- TODO: add a check here to see if we can enchant worn gear (both armour, and weapons too)
-			-- this can be a fairly simple "is it top tier base type" and "is it not-artefact", "is it.plus not > it.subtype max ench"
-			-- kind of thing; i can probably (?) use the base armour def table to pull max ench here
-			-- (except maybe for QDA)
 
 			local rc_scroll = nil
 			rc_scroll = check_for_known_scroll("remove curse")
