@@ -2940,6 +2940,59 @@ local jewellery_plus_ego_weight_table = {
 	{"reflection", 40}, }	-- AMU_REFLECTION
 
 
+-- get the base value (prop value) for an armour item
+-- this compares it.name() only, so it should work with any ident flags (including unidentified items),
+-- this does not check egos or pluses. handling those depends on ident flags, so they are handled separately by get_prop_value()
+-- this function is only intended to work with items of type it.class(true) == "armour"
+function get_armour_base_value(it)
+	local value = 0
+	local it_name = it.name()
+
+	for _, armour_type_name in ipairs(armour_base_def_table) do
+		if it_name:find(armour_type_name[1]) then
+			-- basing this weight logic around AC value is wonky for shields, 
+			-- but they're only going to be compared against other shields...
+--			value = value + (artprop_weight_table[3][2] * 3 * armour_type_name[2])	-- [3][2] should be AC+1 value in the artprop table
+
+			if it_name:find("troll") or it_name:find("crystal") then
+				if armour_type_name[1]:find("troll") or armour_type_name[1]:find("crystal") then
+					value = value + (67 * armour_type_name[2])		-- base ["AC"] bonus
+					if armour_type_name[4] ~= nil then
+						value = value + (75 * armour_type_name[4])	-- normalized ["EV"] bonus
+					end
+				end
+				-- don't add extra value to CPA or TLA for false it_name:find() matches
+			else
+				value = value + (67 * armour_type_name[2])			-- base ["AC"] bonus
+				if armour_type_name[4] ~= nil then
+					value = value + (75 * armour_type_name[4])		-- normalized ["EV"] bonus
+				end
+			end
+
+			-- TODO: "proper" AEVP calculations, instead of this dumb normalization approach that ignores the actual character stats?
+
+		end
+	end
+
+	-- translate dragon scale and TLA base types into prop values, then add them
+	-- TODO: dynamic dscale resist prop values depending on current character resistances
+	if it_name:find("dragon") or it_name:find("troll") then
+		for _,dscale_type in ipairs(dragon_armour_base_props_table) do
+			if it_name:find(dscale_type[1]) then
+				for dscale_prop_key,dscale_prop_val in pairs(dscale_type[2]) do
+					for _, artprop in ipairs(artprop_weight_table) do
+						if dscale_prop_key == artprop[1] then
+							value = value + (dscale_prop_val * artprop[2])
+						end
+					end
+				end
+			end
+		end
+	end
+
+	return value
+end
+
 -- currently, this function is only written to work with armour and jewellery
 function get_prop_value(it)
 	local value = 0
@@ -2954,46 +3007,8 @@ function get_prop_value(it)
 	-- in a test it grabbed a low-plus randart leather armour with lots of props and rolled with it
 	-- it did the same thing with a rF- +1 randart robe, because it had rElec and rCorr
 	if it_class == "armour" then		-- i think it's okay to include shields here; they will only be compared against other shields
-		for _, armour_type_name in ipairs(armour_base_def_table) do
-			if it_name:find(armour_type_name[1]) then
-				-- basing this weight logic around AC value is wonky for shields, 
-				-- but they're only going to be compared against other shields...
---				value = value + (artprop_weight_table[3][2] * 3 * armour_type_name[2])	-- [3][2] should be AC+1 value in the artprop table
 
-				if it_name:find("troll") or it_name:find("crystal") then
-					if armour_type_name[1]:find("troll") or armour_type_name[1]:find("crystal") then
-						value = value + (67 * armour_type_name[2])		-- base ["AC"] bonus
-						if armour_type_name[4] ~= nil then
-							value = value + (75 * armour_type_name[4])	-- normalized ["EV"] bonus
-						end
-					end
-					-- if it's a false match leather or plate, don't add extra value
-				else
-					value = value + (67 * armour_type_name[2])			-- base ["AC"] bonus
-					if armour_type_name[4] ~= nil then
-						value = value + (75 * armour_type_name[4])		-- normalized ["EV"] bonus
-					end
-				end
-
-				-- TODO: AEVP value, i might want to rescale the EVP section of the armour def table to make this calc simpler
-
-			end
-		end
-
-		-- translate dragon scale and TLA base types into prop values, then add them
-		if it_name:find("dragon") or it_name:find("troll") then
-			for _,dscale_type in ipairs(dragon_armour_base_props_table) do
-				if it_name:find(dscale_type[1]) then
-					for dscale_prop_key,dscale_prop_val in pairs(dscale_type[2]) do
-						for _, artprop in ipairs(artprop_weight_table) do
-							if dscale_prop_key == artprop[1] then
-								value = value + (dscale_prop_val * artprop[2])
-							end
-						end
-					end
-				end
-			end
-		end
+		value = value + get_armour_base_value(it)
 
 		if it_plus then
 --			value = value + (artprop_weight_table[3][2] * it_plus)
@@ -3080,6 +3095,127 @@ end
 --	{"leather armour", 3, -40, 201, 801},
 --	{"animal skin", 2, 0, 134, 734},
 --	{"robe", 2, 0, 134, 734},
+
+-- get the best armour we have for a given slot by prop value
+-- get_prop_value will produce wrong values for unidentified items;
+-- but we're trying to grab the best known item so that's okay
+-- slot_type == it.subtype()
+function get_best_known_armour_slot_item_by_value(slot_type)
+	local best = nil
+	for it in inventory() do
+		if it.fully_identified then
+			if it.subtype() == slot_type then
+				if best == nil or get_prop_value(it) > get_prop_value(best) then
+					best = it
+				end
+			end
+		end
+	end
+
+	return best
+end
+
+function check_desired_armour_v2(it)
+	if it.is_useless then return false end
+
+	local subtype = it.subtype()
+	local best = get_best_known_armour_slot_item_by_value(subtype)
+
+	-- if we don't have anything for this slot, then take it
+	if best == nil then return true end
+
+	-- if it's art, then
+	if it.artefact then
+		-- if it's unid, take it
+		if not it.fully_identified then return true end
+		-- if it's fully identified, then
+
+			-- if it's body armour, then
+			if subtype == "body" then		-- subtype *should* always be accessible for class(true) == "armour", even if unid
+				-- if its base type value is >= our best slot base type in inventory, AND				-- (don't downgrade body armour base type)
+				-- if its prop value is >= our best slot prop value in inventory, then take (/keep) it
+				if get_armour_base_value(it) >= get_armour_base_value(best) and get_prop_value(it) >= get_prop_value(best) then
+					return true
+				end
+
+				-- also try to hang on to really good artefact or dscale armour, in case the player wants to switch
+				-- (the number here is just "anything >= than plain fire dragon scales")
+				if get_prop_value(it) >= 1111 then return true end
+			-- else if it's a shield, then
+			elseif subtype == "shield" then
+				-- if its base type value is >= our best slot base type in inventory, AND				-- (don't downgrade shield base type)
+				-- if its prop value is >= our best slot prop value in inventory, then take (/keep) it
+				if get_armour_base_value(it) >= get_armour_base_value(best) and get_prop_value(it) >= get_prop_value(best) then
+					return true
+				end
+
+				-- also try to hang on to really good shields, in case the player wants to switch
+				-- (this value "is this shield value >= medium shield of fire resistance"), 
+				-- notably, this will keep all artefact tower shields which do not have completely terrible props
+				if get_prop_value(it) >= 736 then return true end
+
+			-- else (if it's aux armour) then
+			else
+				-- if its prop value is >= our best slot prop value in inventory, then take (/keep) it
+				if get_prop_value(it) >= get_prop_value(best) then return true end
+
+				-- also try to hang on to really good aux items, in case the player wants to switch
+				-- (the 500 here is entirely arbitrary "is this item >= +5 slaying equivalent", it may need adjustment)
+				if get_prop_value(it) >= 500 then return true end
+			end
+		-- otherwise, leave (/drop) it
+		return false
+	end
+
+	local it_name = it.name()
+	local it_ego = it.ego()
+
+	-- if it's ego or dscale and its base type value is >= our best slot base type value in inventory, then
+	if it_name:find("enchanted") or it_name:find("embroidered") or it_name:find("shiny") or
+		 it_name:find("dyed") or it_name:find("runed") or it_name:find("glowing") or it_name:find("dragon scales") or
+		 it_ego ~= nil then
+		if get_armour_base_value(it) >= get_armour_base_value(best) then
+			-- if it's unid, take it (for now)
+			if not it.fully_identified then return true end
+			-- if it's fully identified, then
+
+			-- take (/keep) it if its prop value is >= our best slot prop value in inventory
+			if get_prop_value(it) >= get_prop_value(best) then return true end
+
+		end
+		-- otherwise, leave (/drop) it
+		return false
+	end
+
+
+	-- if it is not ego or art or dscale, then
+
+		-- if our best item for that slot is plain armour, then
+		--
+		-- note: this could leave us equipped with ego robe or ego leather instead of plain whatever else
+		-- (maybe remove this best. check?)
+		if not best.artefact or best.ego() or best.name():find("dragon scales") then
+			-- if it's unid, then
+			if not it.fully_identified then
+				-- if its base type value is > our best slot base type value in inventory, then take it
+				if get_armour_base_value(it) > get_armour_base_value(best) then return true end
+			else
+			-- if it's fully identified, then
+
+				-- if its base type value is >= our best slot base type in inventory, AND				-- (don't downgrade body armour base type)
+				-- if its prop value is >= our best slot prop value in inventory, then take (/keep) it
+				-- to keep higher plus items, get_prop_value() *should* handle it.plus here
+				if get_armour_base_value(it) >= get_armour_base_value(best) and get_prop_value(it) >= get_prop_value(best) then
+					return true
+				end
+			end
+
+		end
+		-- otherwise, leave (/drop) it
+		return false
+
+end
+
 
 --function check_desired_armour_v2(it)
 --	if it.is_useless then return false end
@@ -3295,6 +3431,10 @@ function check_desired_item_types(it, name)
 		return true							-- it's easiest to just pick all books here
 	end
 
+	if class == "armour" then
+		return check_desired_armour_v2(it)
+	end
+
 	if it.artefact then 
 --		if not class == "book" then		-- can't check artprops on artefact books; doing so on roxanne's book crashes the game
 
@@ -3332,9 +3472,10 @@ function check_desired_item_types(it, name)
 		end
 	end
 
-	if class == "armour" then
-		return check_desired_armour(it)
-	end
+--	-- moving the v2 armour check above the it.artefact check, so we can drop less-useful artefact armour if necessary
+--	if class == "armour" then
+--		return check_desired_armour(it)
+--	end
 
 	for _,which_type in ipairs(item_types) do		-- subtype comparison tables, wherever we can get away with it,
 		if class == which_type[1] then						-- for everything that doesn't need fancier pickup logic
