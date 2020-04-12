@@ -735,6 +735,38 @@ function wear_identify(it)
 	equip(it)
 end
 
+function wield_identify(it)
+	local itname = it.name()
+	crawl.mpr("Trying to wield-identify item: " .. itname)
+
+	wield(it)
+end
+
+function wield(it)
+	local it_name = it.name()
+	local it_class = it.class(true)
+	local success = nil
+
+	if it_class == "magical staff" or it_class == "weapon" or it_class == "food" then		-- Breadswinging, ho!
+		crawl.mpr("Trying to wield item: " .. it_name)
+		success = it.wield()
+	else
+		kickback("Trying to wield item: " .. it_name .. " , but it's a bad class to wield.")
+		success = it.wield()
+	end
+
+	if success ~= nil and success == false then
+		crawl.mpr("Couldn't wield item: " .. itname .. " , are we wearing a shield?, (or is there a species size incompatibility?)")
+	end
+end
+
+function unwield(it)
+	local it_name = it.name()
+	
+	crawl.mpr("Trying to unwield item: " .. it_name)
+	crawl.sendkeys("w-")
+end
+
 --function equip(it)							-- TODO: turns out i probably need to use items.wear(it) for this instead
 --	local itname = it.name()			--			 of a dumb sendkeys because of a potential silent slot-unavailability failure
 --	crawl.mpr("Trying to (W)ear armour: " .. itname)
@@ -1849,10 +1881,12 @@ function explore()
 
 		local rc_scroll = nil
 		local wear_id_it = nil
+		local wield_id_it = nil
 
 		rc_scroll = check_for_known_scroll("remove curse")
 
 		wear_id_it = can_we_wear_id_something()
+		wield_id_it = can_we_wield_id_something()
 
 --		gear = check_eligible_equip()		-- this will become autoequip() function
 		gear = check_better_equips()
@@ -1865,6 +1899,8 @@ function explore()
 			read(rc_scroll)
 		elseif wear_id_it and rc_scroll then
 			wear_identify(wear_id_it)
+		elseif wield_id_it and rc_scroll then
+			wield_identify(wield_id_it)
 		elseif gear then
 			equip(gear)
 		elseif ea_target then
@@ -3517,6 +3553,27 @@ function check_bad_equips_by_value()
 	return nil
 end
 
+function check_bad_wields()
+	local best_skill = get_best_weapon_skill()
+	local it = items.equipped_at("Weapon")
+
+	if it ~= nil then
+		local it_class = it.class(true)
+--		if it_class == "magical staff" or it_class == "weapon" or it_class == "food" then
+			if it.weap_skill ~= best_skill then
+				return it
+			end
+--		end
+
+			-- TODO: prop value, brand, and base type comparisons..
+			-- TODO: some kind of exemption for breadswinging (will this need a c_persist to track resting-state?)
+			-- TODO: some kind of exemption for temporary staff-wielding (as in staff of air or staff or energy)
+			-- TODO: some kind of exemption for temporary launcher wielding
+	end
+
+	return nil
+end
+
 -- any fn registered with chk_lua_save is supposed to return a valid string of Lua, to be executed on savefile load,
 -- in this case, the intent is to persist ID_SCROLL_RECOGNIZED through saving without using c_persist
 -- hope this works
@@ -3576,6 +3633,15 @@ end
 function check_for_ring_id_target()
 	for it in inventory() do
 		if it.class(true) == "jewellery" and not it.fully_identified and it.name():find("ring") then
+			return it
+		end
+	end
+	return nil
+end
+
+function check_for_staff_id_target()
+	for it in inventory() do
+		if it.class(true) == "magical staff" and not it.fully_identified then
 			return it
 		end
 	end
@@ -3678,6 +3744,14 @@ function check_for_wear_id_target()
 	return nil
 end
 
+function check_for_wield_id_target()
+	local staff = check_for_staff_id_target()
+
+	if staff then return staff end
+
+	return nil
+end
+
 function can_we_wear_id_something()
 	local equip_target = nil
 	local rc_scroll = nil
@@ -3686,11 +3760,23 @@ function can_we_wear_id_something()
 	rc_scroll = check_for_known_scroll("remove curse")
 
 	if rc_scroll and equip_target then
---		return rc_scroll, equip_target
 		return equip_target
 	end
 
---	return nil, nil
+	return nil
+end
+
+function can_we_wield_id_something()
+	local wield_target = nil
+	local rc_scroll = nil
+
+	wield_target = check_for_wield_id_target()
+	rc_scroll = check_for_known_scroll("remove curse")
+
+	if rc_scroll and wield_target then
+		return wield_target
+	end
+
 	return nil
 end
 
@@ -4155,6 +4241,15 @@ function get_best_ranged_skill()
 	return ranged_skill
 end
 
+function get_best_weapon_skill()
+	local melee = get_best_melee_skill()
+	local ranged = get_best_ranged_skill()
+
+	if you.base_skill(melee) > you.base_skill(ranged) then return melee end
+
+	return ranged
+end
+
 --function get_best_skill_target()
 --	for _, sktars in ipairs(skilling_goals) do
 --		if you.base_skill(sktars[1]) < sktars[2] then
@@ -4543,6 +4638,9 @@ function ready()															-- TODO: Try again to get chk_lua_save working.
 			local bad_equip = nil
 			bad_equip = check_bad_equips_by_value()
 
+			local bad_wield = nil
+			bad_wield = check_bad_wields()
+
 			local junk = nil
 			junk = check_for_junk_to_drop()
 
@@ -4557,8 +4655,12 @@ function ready()															-- TODO: Try again to get chk_lua_save working.
 
 			if bad_equip and is_slot_cursed(bad_equip) and rc_scroll then
 				read(rc_scroll)
+			elseif bad_wield and is_slot_cursed(bad_wield) and rc_scroll then
+				read(rc_scroll)
 			elseif bad_equip and not is_slot_cursed(bad_equip) then
 				drop(bad_equip)
+			elseif bad_wield and not is_slot_cursed(bad_wield) then
+				unwield(bad_wield)
 			elseif acq_scroll then
 				acquire(acq_scroll)
 			elseif exp_potion then
