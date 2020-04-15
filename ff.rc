@@ -106,7 +106,10 @@ easy_unequip = true
 ## If you are declaring a table, the closing brace cannot be the only thing on its line.
 ## I'm pretty sure this is the reason qw's tables all have "--hack" following the closing brace.
 {
-
+-- valid options:
+-- "zin", "tso", "kiku", "yred", "xom", "veh", "oka", "makh", "sif", "trog",
+-- "nem", "ely", "lucy", "beogh", "jiyva", "fedhas", "chei", "ash", "dith", 
+-- "gozag", "qaz", "ru", "usk", "hep", "wjc", "random", "none"
 local target_gods_table = {
 	"oka", }
 --	"trog", }
@@ -1178,6 +1181,11 @@ end
 
 function have_target_god()
 	if you.race() == "Demigod" then return true end
+
+	for _,which_god in ipairs(target_gods_table) do
+		if which_god == "none" then return true end
+	end
+
 	local you_god = you.god()
 	local valid_gods = get_valid_gods()
 
