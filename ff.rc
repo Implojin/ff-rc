@@ -3230,23 +3230,63 @@ function check_desired_armour_v2(it)
 		--
 		-- note: this could leave us equipped with ego robe or ego leather instead of plain whatever else
 		-- (maybe remove this best. check?)
-		if not best.artefact or best.ego() or best.name():find("dragon scales") then
+
+--		if not best.artefact or best.ego() or best.name():find("dragon scales") then
+
 			-- if it's unid, then
 			if not it.fully_identified then
-				-- if its base type value is > our best slot base type value in inventory, then take it
-				if get_armour_base_value(it) > get_armour_base_value(best) then return true end
+
+				-- if its base type value is > our best slot base type value in inventory, 
+				-- (and if we don't already have one), then take it
+
+				-- a problem here is that (best) only compares against fully identified items:
+				-- if we have, e.g, a +0 robe and 3x unidentified ring mails, (best) will compare the robe and continue to pick ring mail
+				if get_armour_base_value(it) > get_armour_base_value(best) then
+					for stuff in inventory() do
+						if it_name == stuff.name() then		-- an exact name match should prevent most duplicate items from being picked..
+							if it.ininventory == false then return false
+							else return true end		-- we need to keep the first such item for autoequip to work with, at the end of the floor
+						end
+					end
+				end
+
 			else
 			-- if it's fully identified, then
 
 				-- if its base type value is >= our best slot base type in inventory, AND				-- (don't downgrade body armour base type)
 				-- if its prop value is >= our best slot prop value in inventory, then take (/keep) it
 				-- to keep higher plus items, get_prop_value() *should* handle it.plus here
-				if get_armour_base_value(it) >= get_armour_base_value(best) and get_prop_value(it) >= get_prop_value(best) then
-					return true
+				-- NOTE: this logic will result in duplicate base items being kept, if they are == to the best available fully-id 
+				-- slot item, e.g. multiple +0 boots, +0 cloaks, +0 ring mails, etc.
+
+--				if get_armour_base_value(it) >= get_armour_base_value(best) and get_prop_value(it) >= get_prop_value(best) then
+--					return true
+--				end
+
+				if it.ininventory == false then
+					if get_armour_base_value(it) >= get_armour_base_value(best) and get_prop_value(it) > get_prop_value(best) then
+						return true
+					end
+				-- i'm making no assumptions here regarding it.ininventory nil behavior
+				elseif it.ininventory == true then
+					if get_armour_base_value(it) >= get_armour_base_value(best) and get_prop_value(it) >= get_prop_value(best) then
+						local count = 0
+						for stuff in inventory() do
+							if it_name == stuff.name() then
+								count = count + 1
+							end
+						end
+						-- try to prevent duplicate base items from being retained if they were picked up while unid and are now equal to
+						-- our current (best)
+						if count > 1 then return false end
+
+						return true
+					end
 				end
+
 			end
 
-		end
+--		end
 		-- otherwise, leave (/drop) it
 		return false
 
