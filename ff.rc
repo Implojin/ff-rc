@@ -4588,9 +4588,8 @@ function c_answer_prompt(prompt)	-- included for convenience; ensures the player
 	end
 	-- try to prevent the game interrupting auto-shop with suggested shoplist alterations.
 	-- returning false here in case we later track shop items; it shouldn't hurt to have extra list items in the meantime
-	if prompt:find("with cheaper") then
-		return false
-	end
+	if prompt:find("Shopping list: replace") then return false end
+	if prompt:find("Shopping list: remove") then return false end
 	-- if any of our autoequip logic is bugged, this could cause problems,
 	-- but it *should* only be doing this if the cursed piece is actually better than what's currently worn,
 	-- so we'll allow it for now.
