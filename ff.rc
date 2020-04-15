@@ -39,7 +39,8 @@
 
 
 # Fast-Forward is bound to 'Tab' by default,
-macros += M \{9} ===toggle_auto
+#macros += M \{9} ===toggle_auto
+macros += M \{9} ===maybe_auto
 
 # by commenting out the above line, and uncommenting below, it can be bound to 'Shift+Tab' instead:
 #macros += M \{-233} ===toggle_auto
@@ -97,6 +98,9 @@ explore_greedy = true
 pickup_thrown = true
 easy_unequip = true
 
+# set game option to ensure consistent ring equip keystrokes
+#jewellery_prompt = true
+
 # TODO: revisit crawl/options_guide.txt to ensure that explore_stop options are appropriately set
 
 # leaving this disabled for now, but it could be useful later if I want auto() to use items automagically
@@ -134,6 +138,17 @@ end
 
 function toggle_auto()
  auto = (not auto)
+end
+
+-- TODO: "if there are dangerous monsters in view that would prevent the triggering of auto(), then let this function 
+-- trigger whatever would ordinarily be bound to Tab, instead." (===hit_closest by default, could also be ===hit_closest_nomove)
+function maybe_auto()
+	auto = (not auto)
+--	monster_in_view(true)
+	check_kickbacks()
+	if not auto then
+		hit_closest()
+	end
 end
 
 function kickback(reason)
@@ -1497,8 +1512,13 @@ function get_lairbranch_table()
 end
 
 function fn_goal_s1()
-	if c_persist.LAIRBRANCHES == nil then
+	if c_persist.LAIRBRANCHES == nil or next(c_persist.LAIRBRANCHES) == nil then
 		c_persist.LAIRBRANCHES = get_lairbranch_table()
+	end
+
+	if next(c_persist.LAIRBRANCHES) == nil then
+		kickback("The available lairbranch table is empty! (Did we save/load across characters and nuke the table?)")
+		return false
 	end
 
 	-- cleared_s1, set next major goal
@@ -1542,8 +1562,13 @@ function fn_goal_s1()
 end
 
 function fn_goal_s2()
-	if c_persist.LAIRBRANCHES == nil then
+	if c_persist.LAIRBRANCHES == nil or next(c_persist.LAIRBRANCHES) == nil then
 		c_persist.LAIRBRANCHES = get_lairbranch_table()
+	end
+
+	if next(c_persist.LAIRBRANCHES) == nil then
+		kickback("The available lairbranch table is empty! (Did we save/load across characters and nuke the table?)")
+		return false
 	end
 
 	-- cleared_s2, set next major goal
