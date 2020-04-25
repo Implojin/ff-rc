@@ -4564,6 +4564,286 @@ function echo_kfeats_table()		-- debug function, print found kfeats to mpr
 	end
 end
 
+----------------------------------------------------
+----- wizmode realtime action tracking
+----------------------------------------------------
+
+-- similar to getkey() from /dat/clua/automagic.lua,
+-- but we don't bother with the string.char conversion or limit to alphanumeric keycodes
+function get_input_keycode()
+  local key
+  while true do
+    key = crawl.getch()
+		return key
+  end
+end
+
+-- numeric keycode mappings pulled from /source/webserver/static/scripts/key_conversion.js 
+-- apparently that file was mapped from cio.h somehow?
+-- CK_WHATEVER to CMD_WHATEVER mappings pulled from /source/cmd-keys.h
+-- "CMD_WHATEVER" name strings pulled from /source/cmd-name.h
+-- crawl keycode / scancode handling is ugly as heck
+local crawl_getch_keymap_table = {
+	-- val = -255
+	{CK_DELETE, -255, nil},
+
+	{CK_UP, -254, "CMD_MOVE_UP"},
+	{CK_DOWN, -253, "CMD_MOVE_DOWN"},
+	{CK_LEFT, -252, "CMD_MOVE_LEFT"},
+	{CK_RIGHT, -251, "CMD_MOVE_RIGHT"},
+
+	{CK_INSERT, -250, "CMD_REPEAT_CMD"},
+
+	{CK_HOME, -249, "CMD_MOVE_UP_LEFT"},
+	{CK_END, -248, "CMD_MOVE_DOWN_LEFT"},
+	{CK_CLEAR, -247, "CMD_WAIT"},
+
+	{CK_PGUP, -246, "CMD_MOVE_UP_RIGHT"},
+	{CK_PGDN, -245, "CMD_MOVE_DOWN_RIGHT"},
+	{CK_TAB_TILE, -244, nil},	-- // unused
+
+	{CK_SHIFT_UP, -243, "CMD_RUN_UP"},
+	{CK_SHIFT_DOWN, -242, "CMD_RUN_DOWN"},
+	{CK_SHIFT_LEFT, -241, "CMD_RUN_LEFT"},
+	{CK_SHIFT_RIGHT, -240, "CMD_RUN_RIGHT"},
+
+	{CK_SHIFT_INSERT, -239, nil},
+
+	{CK_SHIFT_HOME, -238, "CMD_RUN_UP_LEFT"},
+	{CK_SHIFT_END, -237, "CMD_RUN_DOWN_LEFT"},
+	{CK_SHIFT_CLEAR, -236, "CMD_REST"},
+
+	{CK_SHIFT_PGUP, -235, "CMD_RUN_UP_RIGHT"},
+	{CK_SHIFT_PGDN, -234, "CMD_RUN_DOWN_RIGHT"},
+	{CK_SHIFT_TAB, -233, "CMD_AUTOFIGHT_NOMOVE"},
+
+	{CK_CTRL_UP, -232, "CMD_ATTACK_UP"},
+	{CK_CTRL_DOWN, -231, "CMD_ATTACK_DOWN"},
+	{CK_CTRL_LEFT, -230, "CMD_ATTACK_LEFT"},
+	{CK_CTRL_RIGHT, -229, "CMD_ATTACK_RIGHT"},
+
+	{CK_CTRL_INSERT, -228, nil},
+
+	{CK_CTRL_HOME, -227, "CMD_ATTACK_UP_LEFT"},
+	{CK_CTRL_END, -226, "CMD_ATTACK_DOWN_LEFT"},
+	{CK_CTRL_CLEAR, -225, "CMD_REST"},
+
+	{CK_CTRL_PGUP, -224, "CMD_ATTACK_UP_RIGHT"},
+	{CK_CTRL_PGDN, -223, "CMD_ATTACK_DOWN_RIGHT"},
+	{CK_CTRL_TAB, -222, nil},
+
+	-- // Mouse codes.
+	-- val = -10009		-- in key_conversion.js this is listed as -10009, but in cio.h this is listed as -9999
+										-- (possible error in key_conversion.js?) (is this val defined differently, elsewhere, for webtiles builds?)
+	{CK_MOUSE_MOVE, -10009, "CMD_MOUSE_MOVE"},
+	{CK_MOUSE_CMD, -10008, nil},
+	{CK_MOUSE_B1, -10007, nil},
+	{CK_MOUSE_B2, -10006, nil},
+	{CK_MOUSE_B3, -10005, nil},
+	{CK_MOUSE_B4, -10004, "CMD_MAP_SCROLL_UP"},
+	{CK_MOUSE_B5, -10003, "CMD_MAP_SCROLL_DOWN"},
+	{CK_MOUSE_CLICK, -10002, "CMD_MOUSE_CLICK"}, 
+
+	-- i'm just going to duplicate this section with cio.h keycode values
+	{CK_MOUSE_MOVE, -9999, "CMD_MOUSE_MOVE"},
+	{CK_MOUSE_CMD, -9998, nil},
+	{CK_MOUSE_B1, -9997, nil},
+	{CK_MOUSE_B2, -9996, nil},
+	{CK_MOUSE_B3, -9995, nil},
+	{CK_MOUSE_B4, -9994, "CMD_MAP_SCROLL_UP"},
+	{CK_MOUSE_B5, -9993, "CMD_MAP_SCROLL_DOWN"},
+	{CK_MOUSE_CLICK, -9992, "CMD_MOUSE_CLICK"}, 
+
+	-- // Function keys
+	-- As far as I can tell, function keys do not have CK_WHATEVER definitions in crawlcode. 
+	-- I'm just calling them F1 through F10 here.
+	{F1, -1011, nil}, -- // F1
+	{F2, -1012, nil},
+	{F3, -1013, nil},
+	{F4, -1014, nil},
+	{F5, -1015, nil},
+	{F6, -1016, nil},
+	{F7, -1017, nil},
+	{F8, -1018, nil},
+	{F9, -1019, nil},
+	{F10, -1020, nil},
+--	{F11, -1021, 122}, -- // Don't occupy F11, it's used for fullscreen
+--	{F12, -1022, 123}, } -- // used for chat}
+
+	-- SDL produces different keycodes for local tiles builds: Included here are the function keys.
+	-- As far as I can tell, these keycodes do not have CK_WHATEVER crawlcode definitions.
+	-- I'm using SDLK_F1 through SDLK_F10 here, as their SDL_Keycode names, found at: https://wiki.libsdl.org/SDLKeycodeLookup
+	{SDLK_F1, -1073741882, nil}, -- // F1
+	{SDLK_F2, -1073741883, nil},
+	{SDLK_F3, -1073741884, nil},
+	{SDLK_F4, -1073741885, nil},
+	{SDLK_F5, -1073741886, nil},
+	{SDLK_F6, -1073741887, nil},
+	{SDLK_F7, -1073741888, nil},
+	{SDLK_F8, -1073741889, nil},
+	{SDLK_F9, -1073741890, nil},
+	{SDLK_F10, -1073741891, nil}, }
+--	{SDLK_F11, -1073741892, 122}, -- // Don't occupy F11, it's used for fullscreen
+--	{SDLK_F12, -1073741893, 123}, }
+
+
+-- TODO: use crawl.get_command(which_code[3]) to allow crawl to map its internal CK_KEY for most of these?
+function get_mapped_keychar(keycode)
+	if keycode >= 0 then
+		local c = string.char(keycode)
+		return c
+	else
+		for _,which_code in ipairs(crawl_getch_keymap_table) do
+			if which_code[2] == keycode then
+				local c = which_code[3]
+				return c
+			end
+		end
+	end
+
+	return nil
+end
+
+local keybind_macros_table = {
+	{9, "maybe_auto"}, }
+
+local REALTIME_MARKER = nil
+local PREVIOUS_REALTIME_MARKER = nil
+local REALTIME_DELTA = nil
+local IDLE_TIME_CLAMP = 30000
+
+function get_realtime()
+	if you.wizard() then
+		return crawl.call_dlua(
+			"return crawl.millis()")
+	end
+	-- these custom you.real_time functions don't seem to properly update unless the game has received a keydown input;
+	-- it's probably easier to get rid of them entirely and instead only track realtime with wizmode crawl.millis
+	return you.get_real_time()
+end
+
+function init_realtime()
+	PREVIOUS_REALTIME_MARKER = get_realtime()
+	REALTIME_MARKER = PREVIOUS_REALTIME_MARKER
+end
+
+function update_realtime()
+	PREVIOUS_REALTIME_MARKER = REALTIME_MARKER
+	REALTIME_MARKER = get_realtime()
+	REALTIME_DELTA = REALTIME_MARKER - PREVIOUS_REALTIME_MARKER
+	-- mimic crawl's per-turn realtime clamp value (IDLE_TIME_CLAMP)
+	if REALTIME_DELTA > IDLE_TIME_CLAMP then
+		REALTIME_DELTA = IDLE_TIME_CLAMP
+	end
+end
+
+function get_rt_marker()
+	return REALTIME_MARKER
+end
+
+function get_prev_rt_marker()
+	return PREVIOUS_REALTIME_MARKER
+end
+
+function get_rt_delta()
+	return REALTIME_DELTA
+end
+
+--	["key"] = crawl keycode,
+--	["prev_key"] = previous action crawl keycode,
+--	["chara"] = string.char(key) return OR CMD_WHATEVER equivalent, as returned from get_mapped_keychar(key)
+--	["prev_chara"] = string.char(prev_key) return OR CMD_WHATEVER equivalent, as returned from get_mapped_keychar(prev_key)
+--	["real_ms"] = delta of crawl.millis() since previous action
+--								(realtime in ms, that was taken by the player to generate this turn's input)
+--								Crawl clamps this value at 30000 ms, so we do too.
+--	["count"] = Amount of times the player has input this key combo this game.
+local action_realtime_entry = {["key"] = nil, ["prev_key"] = nil,
+														 	 ["chara"] = nil, ["prev_chara"] = nil, ["real_ms"] = nil, ["count"] = nil}
+local prev_action_realtime_entry = {["key"] = nil, ["prev_key"] = nil,
+														 				["chara"] = nil, ["prev_chara"] = nil, ["real_ms"] = nil, ["count"] = nil}
+
+function sort_rt_ms(a, b)
+	return a["real_ms"] > b["real_ms"]
+end
+
+-- This function logs the player's total realtime spent per unique action input, saves it to a c_persist table,
+-- and sorts that table by total realtime.
+--
+-- The intent is to help identify where the player spends the most realtime on input decisions,
+-- so that the script can be further improved.
+--
+-- At present this only works in wizmode, because it requires the functionality of crawl.millis() (which is dlua only).
+--
+-- Unique table entries follow the above action_realtime_entry format.
+-- Duplicate entries increment "real_ms" and "count", instead of generating new entries.
+function wizmode_log_action_ms()
+		crawl.flush_input()
+		crawl.redraw_screen()
+
+		local key = nil
+		local chara = nil
+		local did_macro = false
+
+		-- get_input_keycode() invokes a while(true) until player input happens ( through crawl.getch() )
+		-- ((will this cause issues with scripted CPU usage?))	-- TODO: figure this out?
+		key = get_input_keycode()
+
+		update_realtime()
+
+		chara = get_mapped_keychar(key)
+
+		for _,which_macro in ipairs(keybind_macros_table) do
+			if key == which_macro[1] then
+				did_macro = true
+				crawl.runmacro(which_macro[2])
+			end
+		end
+		if chara ~= nil and not did_macro then
+			if key >=0 then
+				crawl.sendkeys(chara)
+			else
+				-- As far as I can tell, Crawl doesn't have any kind of good lua keybind handling for those keys for which it internally
+				-- produces negative keycodes: I'm resorting to manually mapping keycodes to command names here, and piping it through
+				-- do_commands instead. This is not ideal and it's likely to break things in non-default CMD_CONTEXT maps.
+				-- Only a few of these keys are commonly used in Crawl (arrow keys, maybe pgup/pgdn), so mapping each context
+				-- manually *might* be feasible, but it would obviously be better to have Crawl handle its own mapping.
+				-- Trouble is, I just don't see how to do it.
+				crawl.do_commands({chara})
+			end
+		end
+
+--		action_realtime_entry = {c_persist.LAST_ACTION_MARKER, tostring(key), chara, get_rt_delta()}
+		-- naive per-turn realtime table is not useful without further parsing
+--		table.insert(c_persist.PLAYER_ACTION_REALTIME_TABLE, action_realtime_entry)
+
+		prev_action_realtime_entry = action_realtime_entry
+
+		action_realtime_entry = {["key"] = key, ["prev_key"] = prev_action_realtime_entry["key"],
+														 ["chara"] = chara, ["prev_chara"] = prev_action_realtime_entry["chara"],
+														 ["real_ms"] = get_rt_delta(), ["count"] = 1}
+		local match = false
+		for _,which_entry in ipairs(c_persist.PLAYER_ACTION_REALTIME_TABLE) do
+			if action_realtime_entry["key"] == which_entry["key"] and action_realtime_entry["prev_key"] == which_entry["prev_key"] then
+				match = true
+				which_entry["real_ms"] = which_entry["real_ms"] + action_realtime_entry["real_ms"]
+				which_entry["count"] = which_entry["count"] + 1
+			end
+		end
+		if match == false then
+			table.insert(c_persist.PLAYER_ACTION_REALTIME_TABLE, action_realtime_entry)
+		end
+
+		table.sort(c_persist.PLAYER_ACTION_REALTIME_TABLE, sort_rt_ms)
+
+		-- this is going to be super spammy, but i'm temporarily adding it for testing feedback
+		crawl.mpr("Last input key #: " .. action_realtime_entry["key"] .. 
+							" , Last input chara equivalent: " .. action_realtime_entry["chara"] .. 
+							" , Last input delta (ms): " .. tostring(action_realtime_entry["real_ms"]))
+
+		crawl.flush_input()
+		crawl.redraw_screen()
+end
+
 
 ----------------------------------------------------
 ----- crawl Lua hooks and hook overrides below -----
@@ -4585,6 +4865,10 @@ if c_persist.FOUND_KFEATS_TABLE == nil then
 	c_persist.FOUND_KFEATS_TABLE = { }
 end
 
+if c_persist.PLAYER_ACTION_REALTIME_TABLE == nil then
+	c_persist.PLAYER_ACTION_REALTIME_TABLE = { }
+end
+
 -- if c_persist.CLEARED_WHATEVER flags are nil, initialize them
 initialize_strategic_goal_flags()
 
@@ -4601,9 +4885,9 @@ function auto_experience()	-- hook to auto-distribute potions of experience
 	return autoskill()
 end
 
-function c_answer_prompt(prompt)	-- included for convenience; ensures the player doesn't quit from a read-id scroll prompt
-	if prompt:find("Really abort") then		-- TODO: test this to make sure it's working properly
-		return false
+function c_answer_prompt(prompt)
+	if prompt:find("Really abort") then		-- for convenience, try to ensure the player doesn't quit from a read-id scroll prompt
+		return false												-- TODO: test this to make sure it's working properly
 	end
 	if prompt:find("Really quaff the potion of lignification") then		-- it's a good potion, this prompt is dumb, never show it
 		return true
@@ -4621,6 +4905,12 @@ function c_answer_prompt(prompt)	-- included for convenience; ensures the player
 	if prompt:find("Really wear") and prompt:find("cursed") then
 		return true
 	end
+
+	-- if we're in wizmode testing the script, let characters die normally
+	if you.wizard() and prompt:find("Die?") then
+		return true
+	end
+
 end
 
 -- This TravelDelay interrupt allows us to bypass the hardcoded EXPLORE_GREEDY shop entry behavior,
@@ -4660,7 +4950,6 @@ function ch_stop_running(runrest_type)
 	return true
 end
 
-
 function ready()															-- TODO: Try again to get chk_lua_save working.
 	if you.turns() == 0 then										-- c_persist *persists*, across games. Resetting it at T:0 like this won't 
 		c_persist.ID_SCROLLS_RECOGNIZED = false		-- work properly, if you save/load between games already in progress.
@@ -4669,6 +4958,17 @@ function ready()															-- TODO: Try again to get chk_lua_save working.
 		autoskill(true)
 		reset_strategic_goal_flags()
 		set_current_goal("goal_god")
+		c_persist.PLAYER_ACTION_REALTIME_TABLE = { }
+		if you.wizard() then
+			init_realtime()
+		end
+	end
+
+	-- if we've saved and reloaded, re-initialize the realtime markers
+	if you.wizard() then
+		if get_rt_marker() == nil or get_prev_rt_marker() == nil then
+			init_realtime()
+		end
 	end
 
 	if auto then
@@ -4681,6 +4981,10 @@ function ready()															-- TODO: Try again to get chk_lua_save working.
 --	if not auto and view.feature_at(0,0) == "enter_shop" then
 --		autoshop()	-- handle automatic shopping list during manual control
 --	end	-- can't do this here without a check to only do it once per game turn, it loops the script if autoshop errors
+
+	if not auto and you.wizard() then
+		wizmode_log_action_ms()
+	end
 
 	if auto then
 		autoskill()	-- do I really need to be changing skill targets with every action? -- TODO: revisit this
@@ -4751,6 +5055,7 @@ function ready()															-- TODO: Try again to get chk_lua_save working.
 			end
 		end
 --		coroutine.yield(true)
+		update_realtime()		-- prevent the script from accruing REALTIME_DELTA during auto turns
 	end
 end
 }
