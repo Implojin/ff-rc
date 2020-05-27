@@ -37,7 +37,6 @@
 # TODO: shaft handling
 # TODO: branch travel
 
-
 # Fast-Forward is bound to 'Tab' by default,
 #macros += M \{9} ===toggle_auto
 macros += M \{9} ===maybe_auto
@@ -125,8 +124,16 @@ local ATT_NEUTRAL = 1
 
 local auto = false
 local HP_KICKBACK_THRESHOLD = 60
+local HP_MULTIBUMP_THRESHOLD = 75
 local POISON_KICKBACK_THRESHOLD = 20
 local SKILL_DRAIN_KICKBACK_THRESHOLD = 80
+
+local bump_attacks_remaining = 0
+local bump_attack_dir = nil
+local bump_mons_target = nil
+
+local ONLINE_PLAY = true
+local ONLINE_DELAY_MS = 100
 
 function go()
  auto = true
@@ -151,14 +158,42 @@ function maybe_auto()
 	end
 end
 
-function kickback(reason)
- crawl.formatted_mpr("Returning player control: " .. reason)
- stop()
+-- vectoring fn pulled from autofight.lua
+--function delta_to_cmd(dx, dy)
+--  local d2v = {
+--    [-1] = { [-1] = "CMD_MOVE_UP_LEFT",  [0] = "CMD_MOVE_LEFT",  [1] = "CMD_MOVE_DOWN_LEFT"},
+--    [0]  = { [-1] = "CMD_MOVE_UP",                               [1] = "CMD_MOVE_DOWN"},
+--    [1]  = { [-1] = "CMD_MOVE_UP_RIGHT", [0] = "CMD_MOVE_RIGHT", [1] = "CMD_MOVE_DOWN_RIGHT"}, }
+--  return d2v[dx][dy]
+--end
+
+-- adapted from qw.rc vi_to_delta(c)
+function cmd_to_delta(command)
+	local d2v = {
+		[-1] = { [-1] = "CMD_MOVE_UP_LEFT",  [0] = "CMD_MOVE_LEFT",  [1] = "CMD_MOVE_DOWN_LEFT"},
+		[0]  = { [-1] = "CMD_MOVE_UP",                               [1] = "CMD_MOVE_DOWN"},
+		[1]  = { [-1] = "CMD_MOVE_UP_RIGHT", [0] = "CMD_MOVE_RIGHT", [1] = "CMD_MOVE_DOWN_RIGHT"}, }
+	local x,y
+	for x = -1, 1 do
+		for y = -1, 1 do
+			if d2v[x][y] == command then
+				return x,y
+			end
+		end
+	end
 end
 
-function low_hp()
- local hp, mhp = you.hp()
- return (100*hp <= HP_KICKBACK_THRESHOLD*mhp)
+function init_swing(command, target, how_many)
+	bump_attack_dir = command
+	bump_mons_target = target
+	bump_attacks_remaining = how_many
+--	crawl.mpr(tostring(bump_attack_dir) .. ", " .. tostring(bump_attacks_remaining))
+end
+
+function stop_swing()
+	bump_attack_dir = nil
+	bump_mons_target = nil
+	bump_attacks_remaining = 0
 end
 
 -- you.feel_safe() "do you feel safe"; this might be a replacement builtin c fn for the firewood checks
@@ -178,6 +213,72 @@ function is_hostile(m)
 		end
 	return true
 	end
+end
+
+-- look ahead in the direction of a move_cmd and check for presence of a hostile enemy
+function is_valid_target(x,y)
+  m = monster.get_monster_at(x, y)
+
+	if m and is_hostile(m) then
+		return m
+	end
+	return nil
+end
+
+-- should we auto swing?
+function auto_swing()
+	if bump_attacks_remaining > 0 and bump_attack_dir ~= nil then
+		local current_target = is_valid_target(cmd_to_delta(bump_attack_dir))
+
+		if current_target ~= nil and current_target:name() == bump_mons_target:name() then
+			return true
+		else		-- stop the swing if our target is no longer there
+			stop_swing()
+			return false
+		end
+	end
+	return false
+end
+
+-- initialize a repeat swing command, if something would cancel the repeat, issue a single swing instead
+function maybe_repeat_swing(command)
+	local mons_target = is_valid_target(cmd_to_delta(command))
+
+	if mons_target ~= nil then
+		init_swing(command, mons_target, 5)
+		check_kickbacks()
+	end
+
+	if not auto_swing() then
+		crawl.flush_input()
+		crawl.redraw_screen()
+		crawl.do_commands({command})
+	end
+end
+
+-- the swing should have already been validated before calling this
+function repeat_swing()
+	if not auto_swing() then
+		kickback("Invalid repeat_swing() command! (Is something wrong with the auto_swing script?)")
+		return false
+	end
+	crawl.flush_input()
+	crawl.redraw_screen()
+	crawl.do_commands({bump_attack_dir})
+	bump_attacks_remaining = bump_attacks_remaining - 1
+	return true
+end
+
+
+function kickback(reason)
+	crawl.formatted_mpr("Returning player control: " .. reason)
+	stop()
+	stop_swing()	-- don't think there's a need to bother with an if do_bump_attacks check here
+end
+
+function low_hp(threshold)
+ local hp, mhp = you.hp()
+ return (100*hp <= threshold*mhp)
 end
 
 -- if I really want to save time with this, I need to give it vectoring behavior to deal with mthreat:2's
@@ -256,6 +357,12 @@ function monster_in_view(do_kickback)
 							kickback("<lightred>Dangerous Mid-Threat Pack: " .. name .. "</lightred>")
 						end
 					end 
+				end
+			end
+			if view.invisible_monster(i,j) then
+				safe_los = false
+				if do_kickback then
+					kickback("Invisible monster nearby?")
 				end
 			end
 		end
@@ -499,8 +606,12 @@ function check_kickbacks()
 		do_player_status_kickbacks()	-- moving status check inside the mons LOS check so it won't kickback with no mons onscreen
 																	-- placing status here might break the script, for effects that root after monsters are dead
 		-- stop for low HP, if any hostile monster is present
-		if low_hp() then
+		if low_hp(HP_KICKBACK_THRESHOLD) then
 			kickback("Low HP")
+		end
+
+		if low_hp(HP_MULTIBUMP_THRESHOLD) and auto_swing() then
+			kickback("HP below multiswing threshold")
 		end
 	end
 
@@ -2031,8 +2142,9 @@ local borked_script_kickback = {
 local shaft_kickback = {
 	{"shafted!", "into a shaft and drop"}, }
 
-local invis_monster_kickback = {
-	{"invis monster nearby", "There is a strange disturbance"}, }
+local invis_monster_kickbacks = {
+	{"invis monster nearby", "There is a strange disturbance"}, 
+	{"invis monster nearby", "Something hits you"}, }
 
 local environmental_danger_kickbacks = {
 	{"standing next to acid wall", "You\'re standing next to a slime covered wall"}, }
@@ -2054,7 +2166,7 @@ local autopathing_target_failure_kickbacks = {
 local message_log_kickbacks = {
 	portal_kickbacks,
 	shaft_kickback,
-	invis_monster_kickback,
+	invis_monster_kickbacks,
 	environmental_danger_kickbacks,
 	autofight_pathing_kickback,
 	autopick_autodrop_failure_kickback,
@@ -4707,6 +4819,26 @@ end
 local keybind_macros_table = {
 	{9, "maybe_auto"}, }
 
+-- {keycode, function_name, function_args}
+local keybind_macros_table_redo = {
+	{9, maybe_auto, nil},
+
+	{121, maybe_repeat_swing, "CMD_MOVE_UP_LEFT"},		-- y
+	{117, maybe_repeat_swing, "CMD_MOVE_UP_RIGHT"},		-- u
+	{98, maybe_repeat_swing, "CMD_MOVE_DOWN_LEFT"},		-- b
+	{110, maybe_repeat_swing, "CMD_MOVE_DOWN_RIGHT"},	-- n
+
+	{-254, maybe_repeat_swing, "CMD_MOVE_UP"},				-- up arrow
+	{-253, maybe_repeat_swing, "CMD_MOVE_DOWN"},			-- down arrow
+	{-252, maybe_repeat_swing, "CMD_MOVE_LEFT"},			-- left arrow
+	{-251, maybe_repeat_swing, "CMD_MOVE_RIGHT"}, }		-- right arrow
+
+--	{CK_UP, -254, "CMD_MOVE_UP"},
+--	{CK_DOWN, -253, "CMD_MOVE_DOWN"},
+--	{CK_LEFT, -252, "CMD_MOVE_LEFT"},
+--	{CK_RIGHT, -251, "CMD_MOVE_RIGHT"},
+
+
 local REALTIME_MARKER = nil
 local PREVIOUS_REALTIME_MARKER = nil
 local REALTIME_DELTA = nil
@@ -4764,6 +4896,54 @@ local prev_action_realtime_entry = {["key"] = nil, ["prev_key"] = nil,
 
 function sort_rt_ms(a, b)
 	return a["real_ms"] > b["real_ms"]
+end
+
+function wrap_player_input()
+	crawl.flush_input()
+	crawl.redraw_screen()
+
+	local key = nil
+	local chara = nil
+	local did_macro = false
+
+	key = get_input_keycode()
+	crawl.mpr("get_input_keycode() == " .. tostring(key))
+	chara = get_mapped_keychar(key)
+	
+	for _,which_macro in ipairs(keybind_macros_table_redo) do
+		if key == which_macro[1] then
+			did_macro = true
+			-- i can't use crawl.runmacro here if i want to pass args to the macro function
+			-- TODO: call the keycode's function table entry directly here
+--			crawl.runmacro(which_macro[2])
+
+			if which_macro[3] == nil then
+				which_macro[2]()
+			else
+				which_macro[2](which_macro[3])
+			end
+
+		end
+	end
+	if chara ~= nil and not did_macro then
+		if key >=0 then
+			crawl.sendkeys(chara)
+		else
+			-- TODO: use crawl.get_command(which_code[3]) to allow crawl to map its internal CK_KEY here?
+			crawl.do_commands({chara})
+
+			-- this ends up mangling something when used with CTRL + direction for swings,
+			-- it's probably fixable but do_commands works okay, so...
+--			crawl.sendkeys(crawl.get_command(chara))	-- hmm, will this work?
+		end
+	end
+
+	-- this is going to be super spammy, but i'm temporarily adding it for testing feedback
+--	crawl.mpr("Last input key #: " .. key .. 
+--						" , Last input chara equivalent: " .. chara)
+
+	crawl.flush_input()
+	crawl.redraw_screen()
 end
 
 -- This function logs the player's total realtime spent per unique action input, saves it to a c_persist table,
@@ -4982,11 +5162,24 @@ function ready()															-- TODO: Try again to get chk_lua_save working.
 --		autoshop()	-- handle automatic shopping list during manual control
 --	end	-- can't do this here without a check to only do it once per game turn, it loops the script if autoshop errors
 
-	if not auto and you.wizard() then
-		wizmode_log_action_ms()
+	if auto == false and auto_swing() == false then
+		if you.wizard() then
+			wizmode_log_action_ms()
+		else
+			wrap_player_input()
+		end
 	end
 
-	if auto then
+--	if not auto and you.wizard() then
+--		wizmode_log_action_ms()
+--	end
+
+	if auto_swing() then
+		repeat_swing()
+	elseif auto then
+        if ONLINE_PLAY then
+            crawl.delay(ONLINE_DELAY_MS)
+        end
 		autoskill()	-- do I really need to be changing skill targets with every action? -- TODO: revisit this
 		crawl.flush_input()
 		crawl.more_autoclear(true)
