@@ -4085,29 +4085,6 @@ function get_best_helm_type()
     return helm
 end
 
--- this check is totally pointless because naga, centaur can't equip plain boots;
--- felid boots should be tagged useless and would never be equipped regardless;
--- talons 3 will tag boots useless and auto-unequip them;
--- possibly the only reason for this fn to exist would be demonspawn with demonic talons < 3, to prevent wasting early ea?
---function get_best_boots_type()
---	local boots = "boots"
---	local species = you.race()
---
---	-- do i really need to add slot blocker mut checks to every aux slot
---	-- ugh
---	-- maybe i don't because the ea target checks equipped? this is no good for low level guaranteed muts like demonspawn, though
---
---	if species == "Naga" or species == "Centaur" then
---		boots = "barding"
---	end
---
---	if you.get_base_mutation_level("talons") > 2 then
---		boots = nil
---	end
---
---	return boots
---end
-
 function check_for_ea_target()
     for _,subtable in ipairs(enchant_armour_targets_table) do
         for _,slot in ipairs(subtable) do
@@ -4126,11 +4103,6 @@ function check_for_ea_target()
                                     if helmtype ~= nil and it_name:find(helmtype) then
                                         return it
                                     end     -- saving ea scrolls for helmet over hat is probably not OpTiMaL bEhAvIoR
---								elseif it_subtype == "boots" then
---									local bootstype = get_best_boots_type()
---									if bootstype ~= nil and it_name:find(bootstype) then
---										return it			-- this check would be pointless
---									end
                                 else
                                     return it
                                 end
