@@ -900,16 +900,6 @@ function equip(it)
     end
 end
 
--- this function isn't safe to use, it needs it.class() checks
---function check_inventory_for_first(string)
---	for it in inventory() do
---		if it.name():find(string) then
---			return it
---		end
---	end
---	return nil
---end
-
 function check_inventory_for_food()
     local chunk = nil
     local ration = nil
