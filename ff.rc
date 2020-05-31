@@ -5098,8 +5098,8 @@ function ready()                                    -- TODO: Try again to get ch
     if auto then
         check_kickbacks()
     end
-    c_persist.LAST_ACTION_MARKER = (1 + c_persist.LAST_ACTION_MARKER)   -- probably I need to move these up, outside auto and
-    crawl.mpr("ACTIONMARKER" .. tostring(c_persist.LAST_ACTION_MARKER)) -- just after check_kickbacks() so they run all the time
+    c_persist.LAST_ACTION_MARKER = (1 + c_persist.LAST_ACTION_MARKER)
+    crawl.mpr("ACTIONMARKER" .. tostring(c_persist.LAST_ACTION_MARKER))
     -- ^^ this has to be visible for the messages() find to work... doesn't look like I can use crawl.dpr ...
 
 --  if not auto and view.feature_at(0,0) == "enter_shop" then
@@ -5114,10 +5114,6 @@ function ready()                                    -- TODO: Try again to get ch
         end
     end
 
---  if not auto and you.wizard() then
---      wizmode_log_action_ms()
---  end
-
     if auto_swing() then
         repeat_swing()
     elseif auto then
@@ -5127,9 +5123,7 @@ function ready()                                    -- TODO: Try again to get ch
         crawl.flush_input()
         crawl.more_autoclear(true)
         crawl.redraw_screen()
---      c_persist.LAST_ACTION_MARKER = (1 + c_persist.LAST_ACTION_MARKER)   -- probably I need to move these up, outside auto and
---      crawl.mpr("ACTIONMARKER" .. tostring(c_persist.LAST_ACTION_MARKER)) -- just after check_kickbacks() so they run all the time
---      -- ^^ this has to be visible for the messages() find to work... doesn't look like I can use crawl.dpr ...
+
         if c_persist.HAVE_ORB then
             fn_goal_orbrun()
         elseif monster_in_view() then
