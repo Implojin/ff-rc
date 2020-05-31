@@ -543,15 +543,8 @@ local should_feature_auto_stop = {
     {"altar_hepliaklqana", true},
     {"altar_wu_jian", true}, }
 
--- v0 script logic. It's all you need!
---function check_kickbacks()
--- if low_hp() and monster_in_view() then
---  kickback("Low HP")
--- end
---end
 
 local move_along = false
-
 
 -- currently, this function only kicks back once per-feature, per-floor
 -- this is not a good way to handle features that may have floor-local duplicates, like shops or transporters:
