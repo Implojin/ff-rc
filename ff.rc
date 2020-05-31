@@ -4842,14 +4842,11 @@ local PREVIOUS_REALTIME_MARKER = nil
 local REALTIME_DELTA = nil
 local IDLE_TIME_CLAMP = 30000
 
+-- at present, this only works in wizmode
 function get_realtime()
     if you.wizard() then
-        return crawl.call_dlua(
-            "return crawl.millis()")
+        return crawl.call_dlua("return crawl.millis()")
     end
-    -- these custom you.real_time functions don't seem to properly update unless the game has received a keydown input;
-    -- it's probably easier to get rid of them entirely and instead only track realtime with wizmode crawl.millis
-    return you.get_real_time()
 end
 
 function init_realtime()
@@ -5246,7 +5243,9 @@ function ready()                                    -- TODO: Try again to get ch
             end
         end
 --      coroutine.yield(true)
-        update_realtime()       -- prevent the script from accruing REALTIME_DELTA during auto turns
+        if you.wizard() then
+            update_realtime()       -- prevent the script from accruing REALTIME_DELTA during auto turns
+        end
     end
 end
 }
