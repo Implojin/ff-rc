@@ -2034,10 +2034,10 @@ function explore()
                 read_identify(read_id)
             end
         else
+            autoskill()
 
             -- this function tracks gamestate and issues "G>", "GT", etc., as appropriate
             do_current_goal_action()
-
         end
     end
 end
@@ -5124,7 +5124,6 @@ function ready()                                    -- TODO: Try again to get ch
         if ONLINE_PLAY then
             crawl.delay(ONLINE_DELAY_MS)
         end
-        autoskill() -- do I really need to be changing skill targets with every action? -- TODO: revisit this
         crawl.flush_input()
         crawl.more_autoclear(true)
         crawl.redraw_screen()
