@@ -544,8 +544,6 @@ local should_feature_auto_stop = {
     {"altar_wu_jian", true}, }
 
 
-local move_along = false
-
 -- currently, this function only kicks back once per-feature, per-floor
 -- this is not a good way to handle features that may have floor-local duplicates, like shops or transporters:
 -- we're handling shops separately with a combination of a TravelDelay interrupt hook and post-runrest hook,
@@ -1977,16 +1975,13 @@ end
 
 function explore()
     crawl.mpr("Explore!")
-    move_along = false          -- need to adjust this move_along behavior slightly to prevent KFEAT spam
     local read_id = nil
     local gear = nil
---    local wear = nil          -- for now, i'm leaving wear-ids out because autoequip isn't implemented, TODO: revisit this
 
     -- "should we go downstairs" comparison : this only checks if the turn counter has failed to increment since our last
     -- explore attempt. This isn't a very reliable check. It breaks when autotravel breaks; such as with monsters in view
     -- but with blocked pathing.
     if (you.turns() ~= last_explore_turn) then  -- TODO: come up with a better implementation for this
---        crawl.sendkeys("o")
         crawl.sendkeys(explore_keybind)
         last_explore_turn = you.turns()
     else
@@ -2006,8 +2001,8 @@ function explore()
         wear_id_it = can_we_wear_id_something()
         wield_id_it = can_we_wield_id_something()
 
---        gear = check_eligible_equip()     -- this will become autoequip() function
-        gear = check_better_equips()
+--        gear = check_eligible_equip()     -- old "autoequip()" function, currently unused
+        gear = check_better_equips()    -- "autoequip()"
 
         local ea_scroll = nil
         local ea_target = nil
@@ -4550,7 +4545,6 @@ end
 function autoshop()
     local did_we_update_the_shopping_list = false
 
-    --if (view.feature_at(0,0) == "enter_shop") and (not move_along) then
     if (view.feature_at(0,0) == "enter_shop") then
         for off_by_index, v in ipairs(items.shop_inventory()) do
             local it = v[1]
