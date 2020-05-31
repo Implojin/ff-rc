@@ -838,22 +838,6 @@ function acquire(scroll)
     kickback("Acquired something?")
 end
 
---function wear_identify(it)		-- TODO: implement autoequip, so we can wear-id without being stuck with junk
---	local itname = it.name()
---	local itclass = it.class(true)
---	crawl.mpr("Trying to wear-identify item: " .. itname)
---
---	if itclass == "armour" then
---		crawl.mpr("Trying to wear-identify armour: " .. itname)
---		it.wear()
---	elseif itclass == "jewellery" and itname:find("ring") then
---		crawl.mpr("Trying to wear-identify jewellery: " .. itname)
---		it.puton()
---	else
---		crawl.mpr("Couldn't wear-id item: " .. itname .. " , Is it not armour or a ring?")
---	end
---end
-
 function wear_identify(it)
     local itname = it.name()
     crawl.mpr("Trying to wear-identify item: " .. itname)
