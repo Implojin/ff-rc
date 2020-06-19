@@ -101,6 +101,14 @@ easy_unequip = true
 # leaving this disabled for now, but it could be useful later if I want auto() to use items automagically
 #bad_item_prompt = false
 
+## Try to set autofight options to work with our fancier fight() logic:
+# If autofight_wait == true, ===hit_closest_nomove while not in range of an enemy will
+# wait for a turn instead of aborting autofight.
+autofight_wait = true
+
+# increase the recent message buffer in dumps and morgues, to help contextualize what the script was doing if it died
+dump_message_count = 200
+
 ## For Crawl rcfile Lua parsing reasons, we must ensure no line in this file contains only the brace char '}'.
 ## If you are declaring a table, the closing brace cannot be the only thing on its line.
 ## I'm pretty sure this is the reason qw's tables all have "--hack" following the closing brace.
@@ -150,7 +158,8 @@ function maybe_auto()
 --    monster_in_view(true)
     check_kickbacks()
     if not auto then
-        hit_closest()
+        --hit_closest()
+        fight()
     end
 end
 
@@ -321,6 +330,13 @@ function min_los(a,b)
     return a["los_count"] < b["los_count"]
 end
 
+-- Lua table sort is unstable: As-written, this function can return different target positions
+-- each time it is called, if their ["los_count"] is otherwise equal.
+-- TODO: stabilize this?
+function min_los_sort(heap)
+    table.sort(heap, min_los)
+end
+
 -- here we store LOS visibility counts for every vertex in the dij_closed{} set,
 -- using view.cell_see_cell(). I *think* cell_see_cell() only checks tile solidity, and not clouds.
 -- TODO: verify whether cell_see_cell() accurately returns blocked-LOS for temporary (non-kfeat) things.
@@ -339,19 +355,21 @@ function update_closed_los()
         end
         vertex["los_count"] = los_count
     end
+
+    min_los_sort(dij_closed)
 end
 
--- Lua table sort is unstable: As-written, this function can return different target positions
--- each time it is called, if their ["los_count"] is otherwise equal.
--- TODO: stabilize this?
 function retrieve_best_closed_los_position()
-    table.sort(dij_closed, min_los)
     return dij_closed[1]["x"], dij_closed[1]["y"]
 end
 
-function pathfind_to_min_los()
+function update_pathfinding()
     update_dijkstra()
     update_closed_los()
+end
+
+function pathfind_to_min_los()
+--    update_pathfinding()
     pathfind_to(retrieve_best_closed_los_position())
 end
 
@@ -512,6 +530,7 @@ function check_rare_ood(m)
     return mdepth > you_depth + ood_threshold and mprob < 2
 end
 
+local monster_table = {}
 
 function monster_in_view(do_kickback)
     local LOS = you.los()       -- properly handle nonstatic LOS as from nightwalker, robe of night, etc.
@@ -520,6 +539,7 @@ function monster_in_view(do_kickback)
     local name = nil
     local threat = nil
     local weapon_desc = nil
+    monster_table = {}
 
     local mid_threat_count = 0
 
@@ -529,6 +549,7 @@ function monster_in_view(do_kickback)
 --            if m and is_hostile(m) and you.see_cell_no_trans(i,j) and view.can_reach(i,j) then
             if m and is_hostile(m) and you.see_cell_no_trans(i,j) then
                 safe_los = false
+                table.insert(monster_table, m)
                 if do_kickback then
                     name = m:name()
                     threat = m:threat()
@@ -965,10 +986,55 @@ function rest()
  crawl.sendkeys("5")
 end
 
+function check_ranged_mons()
+    for _,mons in ipairs(monster_table) do
+        if mons:has_known_ranged_attack() then
+            return true
+        end
+    end
+    return false
+end
+
+function check_reach_range()
+    local range = 1
+    for _,mons in ipairs(monster_table) do
+        if mons:reach_range() > range then
+            range = mons:reach_range()
+        end
+    end
+    return range
+end
+
+function get_mons_count()
+    return #monster_table
+end
+
+function get_adjacent_mons_count()
+    local count = 0
+    for i = -1,1 do
+        for j = -1,1 do
+            local m = monster.get_monster_at(i,j)
+            if m and is_hostile(m) then
+                count = 1 + count
+            end
+        end
+    end
+    return count
+end
+
 -- TODO: fancier fight logic; at least hit_closest_nomove with throwing checks
 function fight()
- crawl.mpr("Fight!")
- hit_closest()
+    crawl.mpr("Fight!")
+    update_pathfinding()
+    local i,j = retrieve_best_closed_los_position()
+--    if get_mons_count() > 1 and i ~= 0 and j ~= 0 and get_adjacent_mons_count() > 1 then
+    if get_mons_count() > 1 and i ~= 0 and j ~= 0 then
+        pathfind_to(i,j)
+    elseif check_ranged_mons() == true or check_reach_range() > 1 then
+        hit_closest()
+    else
+        hit_closest_nomove()
+    end
 end
 
 function inventory()
@@ -2407,14 +2473,18 @@ local missile_types = {
     {nil, true, 27}, -- this should only ever be the case if some dev makes an artefact missile
     {"dart", true, 27},
     {"needle", true, 27}, -- old ver
-    {"stone", true, 5},
+    -- temporarily setting stones and boomerangs to 27, for autofight_throw_nomove use
+--    {"stone", true, 5},
+    {"stone", true, 27},
     {"arrow", false, 27}, -- TODO: i need to add launcher Skilling checks here
     {"bolt", false, 27},
     {"large rock", false, 27}, -- I really need species logic here too
     {"sling bullet", false, 27},
     {"javelin", true, 27},
     {"throwing net", true, 27},
-    {"boomerang", true, 13}, }
+--    {"boomerang", true, 13}, }
+    {"boomerang", true, 27}, }
+
 -- XL checks are probably not the greatest way to handle this: weaker species want item advantage for longer,
 -- and often have an XL aptitude penalty. TODO: maybe revisit this later
 --{string egoname, bool do_we_want_this_ego, int ignore_ego_above_this_xl}		-- don't need the bool here after adding the int
@@ -5045,7 +5115,7 @@ function wrap_player_input()
     local did_macro = false
 
     key = get_input_keycode()
-    crawl.mpr("get_input_keycode() == " .. tostring(key))
+    --crawl.mpr("get_input_keycode() == " .. tostring(key))
     chara = get_mapped_keychar(key)
 	
     for _,which_macro in ipairs(keybind_macros_table_redo) do
@@ -5228,6 +5298,9 @@ function c_answer_prompt(prompt)
     if you.wizard() and prompt:find("Die?") then
         return true
     end
+    -- line of fire blocking, as from plants and statues
+    -- TODO: better handling for this, this will probably get the script stuck on statues
+    if prompt:find("Your line of fire to") then return true end
 
 end
 
@@ -5299,6 +5372,9 @@ function ready()                                    -- TODO: Try again to get ch
 --  if not auto and view.feature_at(0,0) == "enter_shop" then
 --      autoshop()  -- handle automatic shopping list during manual control
 --  end -- can't do this here without a check to only do it once per game turn, it loops the script if autoshop errors
+
+    crawl.flush_input()
+    crawl.redraw_screen()
 
     if auto == false and auto_swing() == false then
         if you.wizard() then
