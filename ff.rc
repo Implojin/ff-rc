@@ -65,7 +65,7 @@ show_travel_trail = true
 # this option can interfere with quick assessment of tile HP bars, so disable this if the auras bother you
 tile_show_threat_levels = tough, nasty
 
-auto_butcher = very hungry
+auto_butcher = true
 confirm_butcher = never
 auto_eat_chunks = true
 easy_eat_chunks = true
@@ -677,10 +677,9 @@ function hp_mp_not_full()
     return (hp_not_full() or mp_not_full())
 end
 
+-- stub, since food is now removed in 0.26
 function hungry()
-    if you.hunger() <= 1 then
-        return true
-    end
+    return false
 end
 
 --view.feature_at(x,y) returns the second name string in feature-data.h, feature_def feat_defs[] ,
@@ -2248,7 +2247,7 @@ function explore()
     else
         if not c_persist.ID_SCROLLS_RECOGNIZED then     -- check if we need to read-id
             read_id = check_for_largest_unid_stack("scroll")
-            if read_id and read_id.quantity <= 1 then -- attempts limited to stacks of 3+, this slightly delays id depth but saves some scrolls
+            if read_id and read_id.quantity <= 1 then -- read-id stacks of 2+
                 read_id = nil
             end
         end
