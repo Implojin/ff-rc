@@ -2,39 +2,23 @@
 #
 # ff.rc : a dungeon crawl script
 #
-#   -----   Fast-Forward    -----
+# ff is a hybrid helper script and partial crawlbot,
+# designed to skip ahead to the next interesting fight.
 #
-#   'Wake me up when we get to the good part.'
+# To start or stop the script, press Tab in-game.
 #
-# Have you ever thought, "Hey, I *want* to like Crawl, but it really only takes like 5 keys and pressing them is pretty boring"?
+# The script automatically stops when something interesting happens.
 #
-# Do pillardancing and breadswinging take more effort than you want to put in?
-#
-# Do you tend to mash 'o tab' until 'o shit' happens?
-#
-# Maybe you'd like it if the game was a little more bite-sized. Closer to coffeebreak duration?
-#
-# Or maybe you'd have more fun if playing the game didn't involve things like food, stairs, and dropping items all the time.
-#
-# Are you the kind of person who unironically wants to automate dumb stuff like excluding every tile you've stepped on?
-# (At least until the devteam removes it?)
-#
-# What if you could get some chump to write the ancient, cursed crawl Lua, so that YOU don't have to?
-#
-#   "It's MY interesting tactical combat, and I WANT IT NOW."
-#
-#   -----   Fast-Forward    -----
-####
-# For a list of thresholds and conditions which return control to the player, 
-# see the check_kickbacks() function below. 
-##
+# For a list of thresholds and conditions which stop the script,
+# ctrl+F function check_kickbacks()
+
 
 # BIG TODOs:
 # TODO: fancy fight logic
 # TODO: shaft handling
 
 
-# Fast-Forward is bound to 'Tab' by default,
+# ff is bound to 'Tab' by default,
 #macros += M \{9} ===toggle_auto
 macros += M \{9} ===maybe_auto
 
@@ -1420,7 +1404,7 @@ end
 
 local last_explore_turn = nil
 
--- get the current CMD_EXPLORE keybind once, when the script is loaded, to permit binding Fast-Forward to 'o'
+-- get the current CMD_EXPLORE keybind once, when the script is loaded, to permit rebinding the script to 'o'
 -- this assumes the player doesn't rebind CMD_EXPLORE while playing
 local explore_keybind = crawl.get_command("CMD_EXPLORE")
 
