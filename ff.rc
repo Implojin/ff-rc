@@ -140,7 +140,7 @@ local ATT_NEUTRAL = 1
 local auto = false
 local HP_KICKBACK_THRESHOLD = 60
 local HP_MULTIBUMP_THRESHOLD = 75
-local POISON_KICKBACK_THRESHOLD = 20
+local POISON_KICKBACK_THRESHOLD = 80
 local SKILL_DRAIN_KICKBACK_THRESHOLD = 80
 
 local bump_attacks_remaining = 0
