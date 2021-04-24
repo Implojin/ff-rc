@@ -1141,12 +1141,8 @@ function unwield(it)
     crawl.sendkeys("w-")
 end
 
---function equip(it)							-- TODO: turns out i probably need to use items.wear(it) for this instead
---	local itname = it.name()			--			 of a dumb sendkeys because of a potential silent slot-unavailability failure
---	crawl.mpr("Trying to (W)ear armour: " .. itname)
---	crawl.sendkeys("W" .. items.index_to_letter(it.slot))
---end
-
+-- Here we use items.wear() instead of sendkeys() where possible,
+-- to prevent a silent equip slot unavailablity failure
 function equip(it)
     local itname = it.name()
     local itclass = it.class(true)
