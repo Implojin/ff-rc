@@ -109,6 +109,13 @@ autofight_wait = true
 # increase the recent message buffer in dumps and morgues, to help contextualize what the script was doing if it died
 dump_message_count = 200
 
+# Disable title screen keypress at newgame for local tiles builds
+tile_skip_title = true
+
+# Disable automatic game restart after death for local tiles builds when passing combo option at command line
+restart_after_game = maybe
+
+
 ## For Crawl rcfile Lua parsing reasons, we must ensure no line in this file contains only the brace char '}'.
 ## If you are declaring a table, the closing brace cannot be the only thing on its line.
 ## I'm pretty sure this is the reason qw's tables all have "--hack" following the closing brace.
