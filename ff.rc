@@ -51,6 +51,10 @@ macros += M \{-1073741882} ===mpr_item_debug
 macros += M \{-1073741884} ===are_we_standing_on_a_valid_altar
 macros += M \{-1073741885} ===echo_kfeats_table
 
+# XXX: Here we bind a no-op for use by send_no_cmd() for redraw purposes.
+# We repurpose the [O]pen doors key for this, as it's mostly unused in normal play.
+bindkey = [O] CMD_NO_CMD_DEFAULT
+
 tile_update_rate = 50
 tile_runrest_rate = 50
 travel_delay = -1
@@ -496,11 +500,19 @@ function repeat_swing()
     return true
 end
 
+-- Sometimes, crawl doesn't properly redraw the screen after sending scripted commands,
+-- and crawl.redraw_screen() does not redraw as expected either.
+-- One workaround that does not cost auts is to issue a command that does nothing.
+-- The keybind used here should be bound to CMD_NO_CMD_DEFAULT for this to work.
+function send_no_cmd()
+    crawl.sendkeys("O")
+end
 
 function kickback(reason)
     crawl.formatted_mpr("Returning player control: " .. reason)
     stop()
     stop_swing()        -- don't think there's a need to bother with an if do_bump_attacks check here
+    send_no_cmd()
 end
 
 function low_hp(threshold)
