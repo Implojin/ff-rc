@@ -143,8 +143,8 @@ local bump_attacks_remaining = 0
 local bump_attack_dir = nil
 local bump_mons_target = nil
 
-local ONLINE_PLAY = true
-local ONLINE_DELAY_MS = 100
+local AUTO_DELAY = true
+local AUTO_DELAY_MS = 25
 
 function go()
  auto = true
@@ -5393,8 +5393,8 @@ function ready()                                    -- TODO: Try again to get ch
     if auto_swing() then
         repeat_swing()
     elseif auto then
-        if ONLINE_PLAY then
-            crawl.delay(ONLINE_DELAY_MS)
+        if AUTO_DELAY then
+            crawl.delay(AUTO_DELAY_MS)
         end
         crawl.flush_input()
         crawl.more_autoclear(true)
