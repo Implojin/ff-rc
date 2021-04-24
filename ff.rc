@@ -1639,15 +1639,10 @@ function fn_goal_god()
         c_persist.HAVE_GOD = true
         set_current_goal("goal_lair")
         crawl.mpr("goal_god complete! setting goal_lair.")
-        crawl.sendkeys(".")
+        -- send a non-action to continue to the next ready() loop
+        send_no_cmd()
         return true
     end
-    -- crawl.do_commands({CMD_NO_CMD_DEFAULT}) doesn't work properly for scripted non-actions intended to end the turn (as above);
-    -- it processes as no command for the turn and ready() completes with auto() still active, 
-    -- but the turn doesn't finish and the game continues to wait for player input.
-    -- I probably need to bind CMD_NO_CMD_DEFAULT to something and sendkeys that if I want the script to continue here:
-    -- (Using "." wastes an in-game turn and isn't ideal.)
-    -- TODO: replace all crawl.sendkeys(".") in the fn_goal functions with a sendkeys bound to CMD_NO_CMD_DEFAULT?
 
     -- pray_altar
     if is_valid_target_god_kfeat(view.feature_at(0,0)) then
@@ -1703,7 +1698,7 @@ function fn_goal_lair()
     if c_persist.CLEARED_LAIR == true then
         set_current_goal("goal_orc")
         crawl.mpr("goal_lair complete! setting goal_orc.")
-        crawl.sendkeys(".")
+        send_no_cmd()
         return true
     end
 
@@ -1723,14 +1718,14 @@ function fn_goal_lair()
     if you.where() == "Lair:6" then
         c_persist.CLEARED_LAIR = true
         crawl.mpr("Cleared lair!")
-        crawl.sendkeys(".")
+        send_no_cmd()
         return true
     end
 
     -- if we're in deep D and we haven't found Lair, kickback
     if you.branch() == "D" and you.depth() > 11 then
         kickback("Failed to find Lair entry. (Maybe it's in a disconnected area?)")
-        crawl.sendkeys(".")
+        send_no_cmd()
         return false
     end
 
@@ -1751,7 +1746,7 @@ function fn_goal_orc()
     if c_persist.CLEARED_ORC == true then
         set_current_goal("goal_d15")
         crawl.mpr("goal_orc complete! setting goal_d15.")
-        crawl.sendkeys(".")
+        send_no_cmd()
         return true
     end
 
@@ -1771,14 +1766,14 @@ function fn_goal_orc()
     if you.where() == "Orc:2" then
         c_persist.CLEARED_ORC = true
         crawl.mpr("Cleared orc!")
-        crawl.sendkeys(".")
+        send_no_cmd()
         return true
     end
 
     -- if we're in deep D and we haven't found Orc, kickback
     if you.branch() == "D" and you.depth() > 12 then
         kickback("Failed to find Orc entry. (Maybe it's in a disconnected area?)")
-        crawl.sendkeys(".")
+        send_no_cmd()
         return false
     end
 
@@ -1799,7 +1794,7 @@ function fn_goal_d15()
     if c_persist.CLEARED_DUNGEON == true then
         set_current_goal("goal_s1")
         crawl.mpr("goal_d15 complete! setting goal_s1.")
-        crawl.sendkeys(".")
+        send_no_cmd()
         return true
     end
 
@@ -1815,7 +1810,7 @@ function fn_goal_d15()
     if you.where() == "D:15" then
         c_persist.CLEARED_DUNGEON = true
         crawl.mpr("Cleared Dungeon!")
-        crawl.sendkeys(".")
+        send_no_cmd()
         return true
     end
 
@@ -1887,7 +1882,7 @@ function fn_goal_s1()
     if c_persist.CLEARED_LAIRBRANCH_1 == true then
         set_current_goal("goal_s2")
         crawl.mpr("goal_s1 complete! setting goal_s2.")
-        crawl.sendkeys(".")
+        send_no_cmd()
         return true
     end
 
@@ -1906,14 +1901,14 @@ function fn_goal_s1()
     if you.have_rune(c_persist.LAIRBRANCHES[1][4]) then
         c_persist.CLEARED_LAIRBRANCH_1 = true
         crawl.mpr("Cleared " .. c_persist.LAIRBRANCHES[1][1] .. "!")
-        crawl.sendkeys(".")
+        send_no_cmd()
         return true
     end
 
     -- if we've cleared branch_s1 and we haven't found rune_s1, kickback
     if you.branch() == c_persist.LAIRBRANCHES[1][1] and you.depth() == 4 then
         kickback("Failed to find " .. c_persist.LAIRBRANCHES[1][4] .. " rune. (Maybe it's in a disconnected area?)")
-        crawl.sendkeys(".")
+        send_no_cmd()
         return false
     end
 
@@ -1937,7 +1932,7 @@ function fn_goal_s2()
     if c_persist.CLEARED_LAIRBRANCH_2 == true then
         set_current_goal("goal_v4")
         crawl.mpr("goal_s2 complete! setting goal_v4.")
-        crawl.sendkeys(".")
+        send_no_cmd()
         return true
     end
 
@@ -1956,14 +1951,14 @@ function fn_goal_s2()
     if you.have_rune(c_persist.LAIRBRANCHES[2][4]) then
         c_persist.CLEARED_LAIRBRANCH_2 = true
         crawl.mpr("Cleared " .. c_persist.LAIRBRANCHES[2][1] .. "!")
-        crawl.sendkeys(".")
+        send_no_cmd()
         return true
     end
 
     -- if we've cleared branch_s2 and we haven't found rune_s2, kickback
     if you.branch() == c_persist.LAIRBRANCHES[2][1] and you.depth() == 4 then
         kickback("Failed to find " .. c_persist.LAIRBRANCHES[2][4] .. " rune. (Maybe it's in a disconnected area?)")
-        crawl.sendkeys(".")
+        send_no_cmd()
         return false
     end
 
@@ -1978,7 +1973,7 @@ function fn_goal_v4()
     if c_persist.CLEARED_VAULTS_4 == true then
         set_current_goal("goal_u")
         crawl.mpr("goal_v4 complete! setting goal_u.")
-        crawl.sendkeys(".")
+        send_no_cmd()
         return true
     end
 
@@ -1997,7 +1992,7 @@ function fn_goal_v4()
     if you.branch() == "Vaults" and you.depth() == 4 then
         c_persist.CLEARED_VAULTS_4 = true
         crawl.mpr("Cleared Vaults:4.")
-        crawl.sendkeys(".")
+        send_no_cmd()
         return true
     end
 
@@ -2006,7 +2001,7 @@ function fn_goal_v4()
     if you.have_rune("silver") then
         c_persist.CLEARED_VAULTS = true
         crawl.mpr("Cleared Vaults!")
-        crawl.sendkeys(".")
+        send_no_cmd()
         return true
     end
 
@@ -2021,7 +2016,7 @@ function fn_goal_u()
     if c_persist.CLEARED_DEPTHS == true then
         set_current_goal("goal_v5")
         crawl.mpr("goal_u complete! setting goal_v5.")
-        crawl.sendkeys(".")
+        send_no_cmd()
         return true
     end
 
@@ -2040,7 +2035,7 @@ function fn_goal_u()
     if you.branch() == "Depths" and you.depth() == 5 then
         c_persist.CLEARED_DEPTHS = true
         crawl.mpr("Cleared Depths:5.")
-        crawl.sendkeys(".")
+        send_no_cmd()
         return true
     end
 
@@ -2055,7 +2050,7 @@ function fn_goal_v5()
     if c_persist.CLEARED_VAULTS == true then
         set_current_goal("goal_zot")
         crawl.mpr("goal_v5 complete! setting goal_zot.")
-        crawl.sendkeys(".")
+        send_no_cmd()
         return true
     end
 
@@ -2074,7 +2069,7 @@ function fn_goal_v5()
     if you.have_rune("silver") then
         c_persist.CLEARED_VAULTS = true
         crawl.mpr("Cleared Vaults!")
-        crawl.sendkeys(".")
+        send_no_cmd()
         return true
     end
 
@@ -2089,7 +2084,7 @@ function fn_goal_zot()
     if c_persist.CLEARED_ZOT == true then
         set_current_goal("goal_orb_pickup")
         crawl.mpr("goal_zot complete! setting goal_orb_pickup.")
-        crawl.sendkeys(".")
+        send_no_cmd()
         return true
     end
 
@@ -2108,7 +2103,7 @@ function fn_goal_zot()
     if you.branch() == "Zot" and you.depth() == 5 then
         c_persist.CLEARED_ZOT = true
         crawl.mpr("Cleared Zot:5.")
-        crawl.sendkeys(".")
+        send_no_cmd()
         return true
     end
 
@@ -2124,7 +2119,7 @@ function fn_goal_orb_pickup()
     if c_persist.HAVE_ORB == true then
         set_current_goal("goal_orbrun")
         crawl.mpr("goal_orb_pickup complete! setting goal_orbrun.")
-        crawl.sendkeys(".")
+        send_no_cmd()
         return true
     end
 
@@ -2143,7 +2138,7 @@ function fn_goal_orb_pickup()
     if you.have_orb() then
         c_persist.HAVE_ORB = true
         crawl.mpr("Picked up the Orb.")
-        crawl.sendkeys(".")
+        send_no_cmd()
         return true
     end
 
