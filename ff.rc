@@ -680,11 +680,6 @@ function hp_mp_not_full()
     return (hp_not_full() or mp_not_full())
 end
 
--- stub, since food is now removed in 0.26
-function hungry()
-    return false
-end
-
 --view.feature_at(x,y) returns the second name string in feature-data.h, feature_def feat_defs[] ,
 -- this is the "vaultname" string that includes underscores
 local should_feature_auto_stop = {
@@ -1121,7 +1116,7 @@ function wield(it)
     local it_class = it.class(true)
     local success = nil
 
-    if it_class == "magical staff" or it_class == "weapon" or it_class == "food" then		-- Breadswinging, ho!
+    if it_class == "magical staff" or it_class == "weapon" then
         crawl.mpr("Trying to wield item: " .. it_name)
         success = it.wield()
     else
@@ -1166,36 +1161,6 @@ function equip(it)
         end
     else
         crawl.mpr("Couldn't equip item: " .. itname .. " , is it not armour or jewellery?")
-    end
-end
-
-function check_inventory_for_food()
-    local chunk = nil
-    local ration = nil
-
-    for it in inventory() do
-        if it.class(true) == "food" then
-            if it.name():find("chunk") then
-                chunk = it
-            end
-            if it.name():find("ration") then        -- this string matches to "disintegration", careful
-                ration = it
-            end
-        end
-    end
-
-    if chunk then return chunk
-    elseif ration then return ration
-    else return nil end
-end
-
-function try_to_eat()
-    local food = check_inventory_for_food()
-
-    if food then
-        eat(food)
-    else
-        kickback("Hungry: Couldn't find any food!")
     end
 end
 
@@ -2186,10 +2151,6 @@ function fn_goal_orbrun()
             fight()
             return true
         end
-    end
-    if hungry() then
-        try_to_eat()
-        return true
     end
 
     if you.where() == "D:1" then
@@ -5391,8 +5352,6 @@ function ready()                                    -- TODO: Try again to get ch
             fn_goal_orbrun()
         elseif monster_in_view() then
             fight()
-        elseif hungry() then
-            try_to_eat()
         elseif hp_mp_not_full() or you.transform() ~= "" then   -- slot meld status seems to not be exposed through Lua: we need to rest
             rest()                                              -- if transformed, or we risk breaking autoequip further down
         else
