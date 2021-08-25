@@ -1320,7 +1320,7 @@ function check_better_equips()
     for it in inventory() do
         -- possible logic problem here: this function will never identify unid stuff, and thus won't consider it for equip,
         -- even if the unid thing should obviously be better than what's equipped (e.g. earlygame armour)
-        if it.fully_identified and not it.equipped then
+        if not it.equipped then
             if it.class(true) == "armour" or (it.class(true) == "jewellery" and it.name():find("ring")) then
                 local equipped = nil
                 local equip_value = nil
@@ -3000,8 +3000,9 @@ function check_desired_weapon(it)
     -- (i think it wont let me compare plus against unid)
 --	if it.damage == best_it.damage and it.plus >= best_it.plus then
 
-    -- unid same base type
-    if it.damage == best_it.damage and it.fully_identified == false then
+    -- same base type (previously unid check)
+    -- TODO: fix this up, it's probably going to be a source of weird re-equip problems now?
+    if it.damage == best_it.damage then
         return true
     end -- again, i think the it.damage checks aren't working with unid stuff
 
@@ -3449,20 +3450,24 @@ end
 function get_best_known_armour_slot_item_by_value(slot_type)
     local best = nil
     for it in inventory() do
-        if it.fully_identified then
-            if it.subtype() == slot_type then
-                if best == nil or get_prop_value(it) > get_prop_value(best) then
-                    best = it
-                end
+        if it.subtype() == slot_type then
+            if best == nil or get_prop_value(it) > get_prop_value(best) then
+                best = it
             end
         end
     end
-
     return best
 end
 
 function check_desired_armour_v2(it)
     if it.is_useless then return false end
+
+    -- Placing a unid check this early *should* ensure that autopickup is willing to travel on top
+    -- of all unidentified armour, so that it can be properly floor-identified.
+    -- TODO: Dropping it all afterwards may be unexpected for the script, however? I need to check this.
+    -- TODO: I bet this is going to cause problems with antique shops? 
+    -- (Whose contents are not pre-identified, and will thus be automatically added to my shoplist if this function is used for shopping)
+    if not it.fully_identified then return true end
 
     local subtype = it.subtype()
     local best = get_best_known_armour_slot_item_by_value(subtype)
@@ -3472,43 +3477,41 @@ function check_desired_armour_v2(it)
 
     -- if it's art, then
     if it.artefact then
-        -- if it's unid, take it
-        if not it.fully_identified then return true end
-        -- if it's fully identified, then
-
-            -- if it's body armour, then
-            if subtype == "body" then       -- subtype *should* always be accessible for class(true) == "armour", even if unid
-                -- if its base type value is >= our best slot base type in inventory, AND       -- (don't downgrade body armour base type)
-                -- if its prop value is >= our best slot prop value in inventory, then take (/keep) it
-                if get_armour_base_value(it) >= get_armour_base_value(best) and get_prop_value(it) >= get_prop_value(best) then
-                    return true
-                end
-
-                -- also try to hang on to really good artefact or dscale armour, in case the player wants to switch
-                -- (the number here is just "anything >= than plain fire dragon scales")
-                if get_prop_value(it) >= 1111 then return true end
-            -- else if it's a shield, then
-            elseif subtype == "shield" then
-                -- if its base type value is >= our best slot base type in inventory, AND       -- (don't downgrade shield base type)
-                -- if its prop value is >= our best slot prop value in inventory, then take (/keep) it
-                if get_armour_base_value(it) >= get_armour_base_value(best) and get_prop_value(it) >= get_prop_value(best) then
-                    return true
-                end
-
-                -- also try to hang on to really good shields, in case the player wants to switch
-                -- (this value "is this shield value >= medium shield of fire resistance"), 
-                -- notably, this will keep all artefact tower shields which do not have completely terrible props
-                if get_prop_value(it) >= 736 then return true end
-
-            -- else (if it's aux armour) then
-            else
-                -- if its prop value is >= our best slot prop value in inventory, then take (/keep) it
-                if get_prop_value(it) >= get_prop_value(best) then return true end
-
-                -- also try to hang on to really good aux items, in case the player wants to switch
-                -- (the 500 here is entirely arbitrary "is this item >= +5 slaying equivalent", it may need adjustment)
-                if get_prop_value(it) >= 500 then return true end
+        -- if it's body armour, then
+        if subtype == "body" then       -- subtype *should* always be accessible for class(true) == "armour", even if unid
+            -- if its base type value is >= our best slot base type in inventory, AND       -- (don't downgrade body armour base type)
+            -- if its prop value is >= our best slot prop value in inventory, then take (/keep) it
+            if get_armour_base_value(it) >= get_armour_base_value(best) 
+               and get_prop_value(it) >= get_prop_value(best) then
+                return true
             end
+
+            -- also try to hang on to really good artefact or dscale armour, in case the player wants to switch
+            -- (the number here is just "anything >= than plain fire dragon scales")
+            if get_prop_value(it) >= 1111 then return true end
+        -- else if it's a shield, then
+        elseif subtype == "shield" then
+            -- if its base type value is >= our best slot base type in inventory, AND       -- (don't downgrade shield base type)
+            -- if its prop value is >= our best slot prop value in inventory, then take (/keep) it
+            if get_armour_base_value(it) >= get_armour_base_value(best)
+               and get_prop_value(it) >= get_prop_value(best) then
+                return true
+            end
+
+            -- also try to hang on to really good shields, in case the player wants to switch
+            -- (this value "is this shield value >= medium shield of fire resistance"), 
+            -- notably, this will keep all artefact tower shields which do not have completely terrible props
+            if get_prop_value(it) >= 736 then return true end
+
+        -- else (if it's aux armour) then
+        else -- TODO: Does this also evaluate true on artefact books? This logic looks probably-buggy.
+            -- if its prop value is >= our best slot prop value in inventory, then take (/keep) it
+            if get_prop_value(it) >= get_prop_value(best) then return true end
+
+            -- also try to hang on to really good aux items, in case the player wants to switch
+            -- (the 500 here is entirely arbitrary "is this item >= +5 slaying equivalent", it may need adjustment)
+            if get_prop_value(it) >= 500 then return true end
+        end
         -- otherwise, leave (/drop) it
         return false
     end
@@ -3521,6 +3524,9 @@ function check_desired_armour_v2(it)
        it_name:find("dyed") or it_name:find("runed") or it_name:find("glowing") or it_name:find("dragon scales") or
        it_ego ~= nil then
 
+        -- XXX: TODO: With equippables being floor-id, unknown egos are all "Have not yet been stepped on."
+        -- By definition, we can't know prop values for things we haven't stepped on; this logic is buggy with floor-id.
+        -- XXX: Exception: Antique shops, which are all unid by default.
         if get_armour_base_value(it) >= get_armour_base_value(best) then
             -- if it's unid, take it (for now)
             if not it.fully_identified then return true end
@@ -3544,244 +3550,70 @@ function check_desired_armour_v2(it)
 
 --        if not best.artefact or best.ego() or best.name():find("dragon scales") then
 
-            -- if it's unid, then
-            if not it.fully_identified then
+    -- IMPORTANT TODO: This logic looks all kinds of fucked up.
+    -- Equippables auto-id when *stepped on* now,
+    -- but this logic is (presumably? need to check) looped into the explore-greedy code,
+    -- meaning that if it does not handle a codepath for unidentified armour,
+    -- then explore_greedy might never path over said armour,
+    -- meaning perfectly good equipment will never be stepped on to trigger autopick.
+    -- Maybe I just need something like if not it.fully_identified then return true end ???
+    -- (With the rest of the logic chain handling auto dropping it afterwards.)
 
-                -- if its base type value is > our best slot base type value in inventory, 
-                -- (and if we don't already have one), then take it
+    -- if it's unid, then
+    if not it.fully_identified then
 
-                -- a problem here is that (best) only compares against fully identified items:
-                -- if we have, e.g, a +0 robe and 3x unidentified ring mails, (best) will compare the robe and continue to pick ring mail
-                if get_armour_base_value(it) > get_armour_base_value(best) then
-                    for stuff in inventory() do
-                        if it_name == stuff.name() then     -- an exact name match should prevent most duplicate items from being picked..
-                            if it.ininventory == false then return false
-                            else return true end    -- we need to keep the first such item for autoequip to work with, at the end of the floor
-                        end
-                    end
+        -- if its base type value is > our best slot base type value in inventory, 
+        -- (and if we don't already have one), then take it
+
+        -- a problem here is that (best) only compares against fully identified items:
+        -- if we have, e.g, a +0 robe and 3x unidentified ring mails, (best) will compare the robe and continue to pick ring mail
+        if get_armour_base_value(it) > get_armour_base_value(best) then
+            for stuff in inventory() do
+                if it_name == stuff.name() then     -- an exact name match should prevent most duplicate items from being picked..
+                    if it.ininventory == false then return false
+                    else return true end    -- we need to keep the first such item for autoequip to work with, at the end of the floor
                 end
-
-            else
-            -- if it's fully identified, then
-
-                -- if its base type value is >= our best slot base type in inventory, AND       -- (don't downgrade body armour base type)
-                -- if its prop value is >= our best slot prop value in inventory, then take (/keep) it
-                -- to keep higher plus items, get_prop_value() *should* handle it.plus here
-                -- NOTE: this logic will result in duplicate base items being kept, if they are == to the best available fully-id 
-                -- slot item, e.g. multiple +0 boots, +0 cloaks, +0 ring mails, etc.
-
---                if get_armour_base_value(it) >= get_armour_base_value(best) and get_prop_value(it) >= get_prop_value(best) then
---                    return true
---                end
-
-                if it.ininventory == false then
-                    if get_armour_base_value(it) >= get_armour_base_value(best) and get_prop_value(it) > get_prop_value(best) then
-                        return true
-                    end
-                -- i'm making no assumptions here regarding it.ininventory nil behavior
-                elseif it.ininventory == true then
-                    if get_armour_base_value(it) >= get_armour_base_value(best) and get_prop_value(it) >= get_prop_value(best) then
-                        local count = 0
-                        for stuff in inventory() do
-                            if it_name == stuff.name() then
-                                count = count + 1
-                            end
-                        end
-                        -- try to prevent duplicate base items from being retained if they were picked up while unid and are now equal to
-                        -- our current (best)
-                        if count > 1 then return false end
-
-                        return true
-                    end
-                end
-
             end
+        end
 
---        end
-        -- otherwise, leave (/drop) it
-        return false
+    else
+    -- if it's fully identified, then
 
-end
+        -- if its base type value is >= our best slot base type in inventory, AND       -- (don't downgrade body armour base type)
+    
+    -- if its prop value is >= our best slot prop value in inventory, then take (/keep) it
+        -- to keep higher plus items, get_prop_value() *should* handle it.plus here
+        -- NOTE: this logic will result in duplicate base items being kept, if they are == to the best available fully-id 
+        -- slot item, e.g. multiple +0 boots, +0 cloaks, +0 ring mails, etc.
 
-
---function check_desired_armour_v2(it)
---    if it.is_useless then return false end
-
---    local itname = it.name()
-
-    -- if it's unid and art or ego or dscale, then take it
---    if not it.fully_identified then
---        if it.artefact then
---            return true
---        elseif itname:find("enchanted") or itname:find("embroidered") or itname:find("shiny") or
---               itname:find("dyed") or itname:find("runed") or itname:find("glowing") then
---            return true
---        elseif itname:find("dragon scales") then
+--        if get_armour_base_value(it) >= get_armour_base_value(best) and get_prop_value(it) >= get_prop_value(best) then
 --            return true
 --        end
---    end
 
-    -- if it's unid and we don't have that subtype in inventory, then take it
-    -- (if we have 1 or fewer fully identified items of that subtype in inventory, then take it?)
-
-
-    -- if it's unid and our equipped version is negative enchant [negative prop value?], then take it
-
-
-    -- if it's id, then
-        -- if its prop value is > 
-
-        -- if we have only one of its subtype in inventory, then keep it ?
-
-
-    -- bad hack to ensure dragon scales remain in inventory for now,
-    -- TODO: replace this with better logic below after adding dragon scale resist weights
-    -- to the base armour def table
-    --if it.name():find("dragon scales") then return true end
-
-
-    --local prop_value = nil
-
-    --if it.fully_identified then
-        --prop_value = get_prop_value(it)
-    --end
-
-    --if prop_value then
-        --if prop_value <= 0 then       -- reject known bad props like *Tele from inventory
-            --return false
-        --end
-    --end
-
-    -- if we don't have one equipped, take one
-    -- TODO: check full inventory here, in case we've just temporarily removed some armour?
-    --local equipped = items.equipped_at(it.equip_type)
-    --if not equipped then return true end
-
-    --local eq_prop_value = nil
-
-    -- hmm
-
---end
-
--- artefacts are already pickup = true, before this function is ever called,
--- we've also already excluded equip slots that are unavailable to the character's species.
--- TODO: verify whether is_useless(temp = false) excludes temporarily-melded item slots (?) .
--- TODO: rewrite this entire function
-function check_desired_armour(it)
-    local subtype = it.subtype()
-    local plus = nil
-    if it.fully_identified then     -- it.plus returns nil if the item is unidentified; ebering's crawl lua docs are incomplete
---    if it.plus ~= nil then
-        plus = it.plus
-    end
-    local ego = it.ego()
-
-    local equipped = items.equipped_at(it.equip_type)
-    if not equipped then    -- if we don't have one, take one
-        return true
-    end -- logic below this point can assume there is a pre-existing equipped item in this slot
-
-    local eqplus = equipped.plus        -- can we assume that we will always know the plus of the equipped item?
-    local eqego = equipped.ego()        -- TODO: verify whether knowing it.plus is guaranteed for equipped items
-    local eqart = equipped.artefact
-
-    -- here i'm wrapping all the normal checks inside an it.plus check,
-    -- and putting a separate pickup for glowing/whatever unidentified egos at the bottom
-    if plus then
-        -- if it has significantly higher enchantment than what's equipped, take it,
-        --  assuming also that we know what we're doing if we're wearing a badly-enchanted artefact
-        if plus >= (eqplus + 2) and (not eqart) then
-            return true
-        end
-
-        -- TODO: this is rejecting blank dragon scale armour most of the time, need to fix
-
-        -- if it's blank and we already have an ego or art, leave it
-        if ego == nil and ( eqego ~= nil or eqart ) then
-            return false
-        end
-
-        -- if it's an ego aux item with +0 or better, take it
-        if ego and subtype ~= "body" and plus >= 0 then
-            return true
-        end
-
-        -- heavily enchanted body armour, take it
-        if subtype == "body" and plus >= 4 then
-            return true
-        end 
-
-        -- if it's better than what we have, take it
-        if plus > eqplus then
-            return true
-        end
-    end
-
-    -- below this point, we're comparing against unidentified items
-    local name = it.name()
-    local eqname = equipped.name()
-
-    -- don't hang on to bucklers if we have a shield
-    if subtype == "shield" then
-        if name:find("buckler") and eqname:find("shield") then
-            return false
-        end
-    end
-
-    -- don't hang onto medium shields if we have a large shield
-    if subtype == "shield" then
-        if name:find("kite") and eqname:find("tower") then
-            return false
-        end
-    end
-
-    -- also try to be smart about picking up extra large shields
-    if subtype == "shield" then
-        if name:find("tower") or name:find("large") then
-            if eqname:find("buckler") or eqname:find("kite") then
+        if it.ininventory == false then
+            if get_armour_base_value(it) >= get_armour_base_value(best) and get_prop_value(it) > get_prop_value(best) then
                 return true
-            elseif not it.fully_identified then
+            end
+        -- i'm making no assumptions here regarding it.ininventory nil behavior
+        elseif it.ininventory == true then
+            if get_armour_base_value(it) >= get_armour_base_value(best) and get_prop_value(it) >= get_prop_value(best) then
+                local count = 0
+                for stuff in inventory() do
+                    if it_name == stuff.name() then
+                        count = count + 1
+                    end
+                end
+                -- try to prevent duplicate base items from being retained if they were picked up while unid and are now equal to
+                -- our current (best)
+                if count > 1 then return false end
+
                 return true
-            elseif it.ego() then
-                return true
-            elseif plus and eqplus and plus > eqplus then
-                return true
-            else
-                return false
             end
         end
     end
-
--- as in item-name.cc, item_def  name_aux( , switch case OBJ_ARMOUR:
--- enchanted , embroidered , shiny , dyed , runed , glowing
-    if name:find("enchanted") or name:find("embroidered") or name:find("shiny") or
-       name:find("dyed") or name:find("runed") or name:find("glowing") then
-        return true
-    end
-
-    -- below this point we're dealing with non-artefact, non-ego items
-
-    -- pickup generic dragon scales, if we don't already have something good
-    if subtype == "body" and name:find("dragon") and 
-       (not eqname:find("dragon") and eqplus > 2) then
-            return true
-    end
-
-    -- pickup a body armour if we're wearing leather or worse
-    if subtype == "body" then
-        if name:find("dragon") or name:find("scale") or name:find("ring") or name:find("plate") then
-            if eqname:find("dragon") or eqname:find("scale") or eqname:find("ring") or eqname:find("plate") then
-                return false
-            else
-                return true     -- as written, this will pickup multiple such items until one is actually equipped
-            end
-        end
-    end
-
-    -- let's assume that by default, we don't want it
+    -- otherwise, leave (/drop) it
     return false
 end
-
 
 -- autopick func
 function check_desired_item_types(it, name)
@@ -3818,6 +3650,8 @@ function check_desired_item_types(it, name)
         return true             -- it's easiest to just pick all books here
     end
 
+    -- this is intentionally placed above the it.artefact check,
+    -- so that less-useful artefact armour will be dropped
     if class == "armour" then
         return check_desired_armour_v2(it)
     end
@@ -3858,11 +3692,6 @@ function check_desired_item_types(it, name)
             end
         end
     end
-
---    -- moving the v2 armour check above the it.artefact check, so we can drop less-useful artefact armour if necessary
---    if class == "armour" then
---        return check_desired_armour(it)
---    end
 
     for _,which_type in ipairs(item_types) do   -- subtype comparison tables, wherever we can get away with it,
         if class == which_type[1] then          -- for everything that doesn't need fancier pickup logic
