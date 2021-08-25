@@ -4203,6 +4203,13 @@ local skilling_goals = {
     {"Dodging", 22},
     {"Armour", 22},
     {"Shields", 20},
+    {"melee", 25},      -- everything past this point is XP burn to prevent running out of skill targets after deep Zot
+    {"Fighting", 25},   -- TODO: improve this, to automate spell school pickup for Zigs, and take character aptitudes into account?
+    {"melee", 26},
+    {"Fighting", 26},
+    {"melee", 27},
+    {"Fighting", 27},
+    {"Shields", 25},
     {"Invocations", 20}, }
 
 function get_best_damage_skill()
