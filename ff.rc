@@ -1097,20 +1097,6 @@ function acquire(scroll)
     kickback("Acquired something?")
 end
 
-function wear_identify(it)
-    local itname = it.name()
-    crawl.mpr("Trying to wear-identify item: " .. itname)
-
-    equip(it)
-end
-
-function wield_identify(it)
-    local itname = it.name()
-    crawl.mpr("Trying to wield-identify item: " .. itname)
-
-    wield(it)
-end
-
 function wield(it)
     local it_name = it.name()
     local it_class = it.class(true)
@@ -2208,13 +2194,8 @@ function explore()
         end
 
         local rc_scroll = nil
-        local wear_id_it = nil
-        local wield_id_it = nil
 
         rc_scroll = check_for_known_scroll("remove curse")
-
-        wear_id_it = can_we_wear_id_something()
-        wield_id_it = can_we_wield_id_something()
 
 --        gear = check_eligible_equip()     -- old "autoequip()" function, currently unused
         gear = check_better_equips()    -- "autoequip()"
@@ -2225,10 +2206,6 @@ function explore()
 
         if you_are_cursed() and rc_scroll then
             read(rc_scroll)
-        elseif wear_id_it and rc_scroll then
-            wear_identify(wear_id_it)
-        elseif wield_id_it and rc_scroll then
-            wield_identify(wield_id_it)
         elseif gear then
             equip(gear)
         elseif ea_target then
@@ -3986,42 +3963,6 @@ function check_for_known_potion(subtype_name)
     return nil
 end
 
-function check_for_amulet_id_target()
-    for it in inventory() do
-        if it.class(true) == "jewellery" and not it.fully_identified and it.name():find("amulet") then
-            return it
-        end
-    end
-    return nil
-end
-
-function check_for_armour_id_target()
-    for it in inventory() do
-        if it.class(true) == "armour" and not it.fully_identified then
-            return it
-        end
-    end
-    return nil
-end
-
-function check_for_ring_id_target()
-    for it in inventory() do
-        if it.class(true) == "jewellery" and not it.fully_identified and it.name():find("ring") then
-            return it
-        end
-    end
-    return nil
-end
-
-function check_for_staff_id_target()
-    for it in inventory() do
-        if it.class(true) == "magical staff" and not it.fully_identified then
-            return it
-        end
-    end
-    return nil
-end
-
 function check_for_largest_unid_stack(classname)
     local stack = nil
 	
@@ -4040,6 +3981,7 @@ function check_for_largest_unid_stack(classname)
     return stack    -- if nil, all stacks of this classtype are (should be?) fully identified
 end
 
+-- this functiton is currently unused, TODO: wrap it into auto-equip, maybe?
 function good_amulet_equipped()
     amu = items.equipped_at("Amulet")
     if amu then
@@ -4053,39 +3995,21 @@ function good_amulet_equipped()
     return false
 end
 
--- amulets first if we aren't wearing a good one,
---  then the largest stack of either scrolls or potions in that order,
---  lastly, id the rest of the amulets
+--  scroll id the largest stack of either potions or scrolls in that order
 function check_for_scroll_id_target()
-    local amulet = check_for_amulet_id_target()
     local scroll = check_for_largest_unid_stack("scroll")
     local potion = check_for_largest_unid_stack("potion")
 
-    if not good_amulet_equipped() then 
-        if amulet then
-            return amulet
-        end
-    end
-
     if scroll and potion then
-        if scroll.quantity >= potion.quantity then
-            return scroll
-        else
+        if potion.quantity >= scroll.quantity then
             return potion
+        else
+            return scroll
         end
     end
 
-    if scroll then
-        return scroll
-    end
-	
-    if potion then
-        return potion
-    end
-
-    if amulet then
-        return amulet
-    end
+    if potion then return potion end
+    if scroll then return scroll end
 
     return nil
 end
@@ -4106,52 +4030,6 @@ function can_we_scroll_id_something()
     end
 
     return nil, nil
-end
-
-function check_for_wear_id_target()
-    local armour = check_for_armour_id_target()
-    local ring = check_for_ring_id_target()
-
-    if armour then return armour end
-    if ring then return ring end
-
-    return nil
-end
-
-function check_for_wield_id_target()
-    local staff = check_for_staff_id_target()
-
-    if staff then return staff end
-
-    return nil
-end
-
-function can_we_wear_id_something()
-    local equip_target = nil
-    local rc_scroll = nil
-
-    equip_target = check_for_wear_id_target()
-    rc_scroll = check_for_known_scroll("remove curse")
-
-    if rc_scroll and equip_target then
-        return equip_target
-    end
-
-    return nil
-end
-
-function can_we_wield_id_something()
-    local wield_target = nil
-    local rc_scroll = nil
-
-    wield_target = check_for_wield_id_target()
-    rc_scroll = check_for_known_scroll("remove curse")
-
-    if rc_scroll and wield_target then
-        return wield_target
-    end
-
-    return nil
 end
 
 function is_armour_type_enchantable(it)
