@@ -4182,41 +4182,6 @@ local melee_range_magic = {
 
 -- the above indicates (5, 5, 8, 8, 10, 10) might be helpful earlygame order for scripted chars?
 
-local skilling_goals = {        -- initial attempt at skilling order modelled after the postgame skilling dump of a sample MiMo I ran
-    --{"Unarmed Combat", 7},      -- {offense, 7} -- figure out how to write this, it's late and i'm tired
-    {"melee", 7},
-    {"Fighting", 7},
-    --{"Unarmed Combat", 10},     -- {offense, 10}
-    {"melee", 10},
-    --{"Fighting", 10},
-    {"Fighting", 12},
-    {"Invocations", 8},
-    --{"Unarmed Combat", 14},
-    {"melee", 14},
-    {"Dodging", 4},
-    {"Armour", 7},
-    {"Shields", 4},
-    --{"Fighting", 12},
-    --{"Unarmed Combat", 15},   -- {offense, 15}
-    --{"Fighting", 15},
-    {"Fighting", 17},
-    --{"Unarmed Combat", 17},
-    {"melee", 17},
-    --{"Shields", 7},
-    --{"Dodging", 15},
-    {"Armour", 11},
-    {"Shields", 10},
-    {"Dodging", 12},
-    --{"Fighting", 17},
-    --{"Unarmed Combat", 22},   -- {offense, 22}        -- shouldn't this be earlier?
-    {"melee", 22},
-    {"Fighting", 22},
-    {"Armour", 22},
-    {"Dodging", 22},
-    {"Shields", 20},
-    {"Invocations", 20}, }  -- adding this at the end for now to delay onset of empty skill table user prompts in Zot
--- yeah it's late and i'm tired, TODO: fixup this logic
-
 local skilling_goals_test = {
     {"melee", 5},
     {"Fighting", 5},
@@ -4303,18 +4268,6 @@ function get_best_weapon_skill()
     return ranged
 end
 
---function get_best_skill_target()
---	for _, sktars in ipairs(skilling_goals) do
---		if you.base_skill(sktars[1]) < sktars[2] then
---			if you.can_train_skill(sktars[1]) then
---				return sktars[1], sktars[2]
---			end
---		end
---	end
---
---	return nil, nil
---end
-
 -- skillname wrapper to ease skill fn table substitutions
 function skwrap(skill)
     if skill == "melee" then
@@ -4327,8 +4280,8 @@ function skwrap(skill)
 end
 
 -- v2, melee substitutions
+-- XXX: TODO: Make this wrapper code a little less ugly?
 function get_best_skill_target()
---    for _, sktars in ipairs(skilling_goals) do
     for _, sktars in ipairs(skilling_goals_test) do
         if you.base_skill(skwrap(sktars[1])) < sktars[2] then
             if you.can_train_skill(skwrap(sktars[1])) then
@@ -5070,6 +5023,8 @@ function ready()                                    -- TODO: Try again to get ch
             -- *tele gear could cause problems while trying to rest.
             -- however, if we've been transformed, we need to rest it off before trying to drop equipment,
             -- due to the above slot-meld issues.
+            -- XXX: TODO: Is any of this bad_equip code actually needed now?
+            -- We should never be equip-identifying *anything* now, so.....?
             local bad_equip = nil
             bad_equip = check_bad_equips_by_value()
 
