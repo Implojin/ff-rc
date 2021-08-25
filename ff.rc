@@ -53,11 +53,6 @@ show_travel_trail = true
 # this option can interfere with quick assessment of tile HP bars, so disable this if the auras bother you
 tile_show_threat_levels = tough, nasty
 
-auto_butcher = true
-confirm_butcher = never
-auto_eat_chunks = true
-easy_eat_chunks = true
-
 flush.failure = false
 
 # let's see if this gets rid of mons projectile anim delay...
@@ -843,7 +838,6 @@ function check_kickbacks()
     end
 
     -- For technical reasons, some kickbacks are handled elsewhere in the script:
-    -- Hunger is being checked further down the main ready() loop, to prevent interference with autoexplore.
     -- Shops are being checked as a combination TravelDelay interrupt and post-runrest hook, to enable items being
     --  added to the shopping list, before the player sees the shop window open.
 end
@@ -2475,13 +2469,7 @@ local wand_types = {
 
 -- as in item-prop.cc , food_def Food_prop[] , *name field
 local food_types = {
-    {nil, true},        -- see items.subtype() limitations below, nil will almost always be the case for food
-    {"ration", true},
-    {"chunk", true},
-    {"buggy pizza", false},     -- handle buggy old ver stuff too, but this probably isn't needed
-    {"buggy jelly", true},
-    {"buggy ration", true},
-    {"buggy fruit", false},
+    {nil, false},        -- see items.subtype() limitations below, nil will almost always be the case for food
     {"snozzcumber", true}, }    -- don't forget the snozz ;_;
 
 -- for convenience, this follows the ordering in scroll_type_name() in item-name.cc
@@ -2658,10 +2646,9 @@ local misc_types = {
     {"buggy miscellaneous item", true}, }   -- again, why not
 
 -- pulled from item-name.cc , sub_type_string(), case: OBJ_CORPSES
--- {nil, false} will remove corpses from autopick, but it also messes with auto_butcher behavior,
--- by preventing autotravel from seeing corpses as potential travel targets.
--- It's probably better to set this to {nil, true}, because the game prevents corpse pickup in current
--- versions, regardless of autopick settings. This should (?) allow auto_butcher to work properly.
+-- {nil, false} will remove corpses from autopick, but for historical auto_butcher reasons,
+-- It was better to set this to {nil, true}, because the game prevents corpse pickup in current
+-- versions, regardless of autopick settings.
 local corpse_types = {
     {nil, true},        -- see items.subtype() limitations below
     {"corpse", false}, }
@@ -3739,7 +3726,7 @@ function check_bad_wields()
 
     if it ~= nil then
         local it_class = it.class(true)
---        if it_class == "magical staff" or it_class == "weapon" or it_class == "food" then
+--        if it_class == "magical staff" or it_class == "weapon" then
             if it.weap_skill ~= best_skill then
                 return it
             end
