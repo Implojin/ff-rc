@@ -4182,7 +4182,7 @@ local melee_range_magic = {
 
 -- the above indicates (5, 5, 8, 8, 10, 10) might be helpful earlygame order for scripted chars?
 
-local skilling_goals_test = {
+local skilling_goals = {
     {"melee", 5},
     {"Fighting", 5},
     {"melee", 8},
@@ -4282,7 +4282,7 @@ end
 -- v2, melee substitutions
 -- XXX: TODO: Make this wrapper code a little less ugly?
 function get_best_skill_target()
-    for _, sktars in ipairs(skilling_goals_test) do
+    for _, sktars in ipairs(skilling_goals) do
         if you.base_skill(skwrap(sktars[1])) < sktars[2] then
             if you.can_train_skill(skwrap(sktars[1])) then
                 return skwrap(sktars[1]), sktars[2]
