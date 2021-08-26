@@ -32,6 +32,7 @@ macros += M \{9} ===maybe_auto
 
 #bindkey = [1] CMD_NO_CMD_DEFAULT
 macros += M \{-1073741882} ===mpr_item_debug
+macros += M \{-1073741887} ===mpr_monster_debug
 macros += M \{-1073741884} ===are_we_standing_on_a_valid_altar
 macros += M \{-1073741885} ===echo_kfeats_table
 
@@ -623,7 +624,7 @@ local holy_brands = {
 
 function check_mons_weapon_desc(m)
 -- this pattern match should handle large decimal enchantments, but it won't capture the Axe of Woe
-    local plus = tonumber(string.match(m:desc(true), "%+(%d+)")) -- the ingame text is "its +#"
+    local plus = tonumber(string.match(m:target_desc(), "%+(%d+)")) -- the ingame text is "its +#"
     local brand = nil
     local you_xl = you.xl()
 
@@ -632,7 +633,7 @@ function check_mons_weapon_desc(m)
     -- also try not to erroneously return AC/EV/MR descriptors like '+++'
     -- TODO: This currently returns a poorly-trimmed string against Wraiths, at least, and probably others. 
     --       See if I can further improve the pattern match?
-    local weapon_desc = string.match(m:desc(true), "(%+%d+[^\n%.]+)")
+    local weapon_desc = string.match(m:target_desc(), "(%+%d+[^\n%.]+)")
 
     if weapon_desc then
         for _, which_brand in ipairs(dangerous_brands) do
@@ -2779,9 +2780,34 @@ function mpr_item_debug()       -- debug utility fn, prints to mpr most stats of
     mpr_prop_value(it)
     mpr_equip_type(it)
     mpr_max_plus(it)
-
 end
 
+-- for info about the new moninf target_*** binds, see:
+-- https://github.com/crawl/crawl/commit/237fc358d946a45c4da73da322d43692b99c6f88
+function mpr_monster_debug()
+    local LOS = you.los()
+    local m = nil
+
+    local m_table = {}
+
+    for i = -LOS,LOS do
+        for j = -LOS,LOS do
+            m = monster.get_monster_at(i,j)
+            if m and is_hostile(m) then
+                table.insert(m_table, m)
+            end
+        end
+    end
+
+    for _,mons in ipairs(m_table) do
+        crawl.mpr("mons:name():" .. tostring(mons:name()))
+        crawl.mpr("mons:threat(): " .. tostring(mons:threat()))
+        crawl.mpr("mons:target_desc(): " .. tostring(mons:target_desc()))
+        crawl.mpr("mons:target_weapon(): " .. tostring(mons:target_weapon()))
+--        crawl.mpr("mons:target_spell(): " .. tostring(mons:target_spell()))
+--        crawl.mpr("mons:target_throw(): " .. tostring(mons:target_throw()) .. "\n")
+    end
+end
 
 -- all weapon type tables sourced from item-prop.cc, weapon_def Weapon_prop[]
 --
