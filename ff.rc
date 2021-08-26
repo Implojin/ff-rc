@@ -3655,6 +3655,8 @@ function check_desired_item_types(it, name)
         return false
     end
 
+    if not it.fully_identified then return true end
+
     if class == "weapon" then               -- adding custom weapon logic before the artefact check,
         return check_desired_weapon(it)     -- we really don't need to pick unusable randart weapons
     end
