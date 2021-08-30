@@ -1319,9 +1319,7 @@ function check_better_equips()
             if it.class(true) == "armour" or (it.class(true) == "jewellery" and it.name():find("ring")) then
                 local equipped = nil
                 local equip_value = nil
-                -- i need to replace this call with a wrapper fn that grabs the worst equipped item,
-                -- to handle things like ring slots
---                equipped = items.equipped_at(it.equip_type)
+                -- here we use a wrapper to handle ring slots
                 equipped = check_worst_equipped_at(it.equip_type)
 
                 local it_value = get_prop_value(it)
@@ -2766,6 +2764,10 @@ function mpr_max_plus(it)
     crawl.mpr("Armour type max plus: " .. tostring(get_armour_max_plus(it)))
 end
 
+function mpr_hands(it)
+    crawl.mpr("Hands required: " .. tostring(it.hands))
+end
+
 function mpr_item_debug()       -- debug utility fn, prints to mpr most stats of the first item on the ground at (0,0),
     local itn = items.get_items_at(0,0)     -- can be used in clua context
     local it = itn[1]
@@ -2780,6 +2782,7 @@ function mpr_item_debug()       -- debug utility fn, prints to mpr most stats of
     mpr_prop_value(it)
     mpr_equip_type(it)
     mpr_max_plus(it)
+    mpr_hands(it)
 end
 
 -- for info about the new moninf target_*** binds, see:
@@ -2926,17 +2929,44 @@ end
 -- defining "best jewellery" is going to require some kind of relative artprop evaluation function
 -- (artprop eval will also need to be applied to armour)
 
+-- TODO: does the above comment chunk not just read as: "I need to cache the result of my autoequip function?" ???
+-- TODO: Maybe implement that? it might not be worth the time?
 
 
---function get_best_inventory_weapon(skill)
---	local temp = nil
---	for it in inventory() do
---		if it.weap_skill == skill then
---			if it.name():find("
---
---
---	return it
---end
+-- TODO: Okay, I guess I'm writing this v2 function, finally?
+-- Thoughts:
+-- * use base type weightings, similarly to the existing armour weightings
+-- * weight slaying as, like, 2 slay == 1 base damage? it doesnt work out that neatly in reality, but...
+-- * weight strength as, like, 1/3 of its ego prop weight? or not at all?
+-- strength is nice to have, but on a weapon, i mostly only care about base dam, slay, brand, speed, and also acc during very earlygame
+-- chasing strength on weapon, with an unsupervised bot script, is dumb; it will inevitably cause bad choices on high-str low-dam weaps
+-- ok, i'm not going to weight artprops at all for weapons,
+-- just basedam, speed, slay, brand, acc?
+-- can i fold acc into a single weight value with basedam and basespeed?
+-- this value would change over the course of a game, depending on weapon skill and fighting...
+-- maybe i can fold them all into a half-assed "damage per aut" for the weapon,
+-- with the acc weighting against some token "hard monster" depending on char XL?
+
+-- this all sounds like a lot of dev effort for a heuristic that really ought to be "use the highest basedam 1h you can find"...
+
+-- pseudo:
+
+-- use the (applicable skill) highest basedam 1h you can find,
+
+-- as long as it keeps your current attackdelay <= 1.1
+-- if your attackdelay would be higher, use the next best (applicable skill) weapon, but don't drop the better weapon
+
+-- if you have multiple equal basedam (<=1.1 delay) 1h, use the higher slaybrand weighting
+-- example brand weighting == ~2.5 slay points? roughly?
+-- (would I rather take a +3 war axe, or a +0 war axe of freezing?) (seems pretty close..)
+-- flaming should be higher weighted than freezing, to let the script tab hydras with less effort?
+-- [[ maybe not, since i need to program non-melee hydra handling anyway... ]]
+
+-- speed vorp elec disto venom drain flame freeze ?? new brands? (spectral? what else is there???)
+
+
+
+
 
 --function check_desired_weapon_v2(it)
 --	local itskill = it.weap_skill
@@ -2957,11 +2987,23 @@ end
 --end
 
 
--- i was duplicating everything in this function, that was dumb
--- TODO: come back to this when i'm awake
+-- Many of the weapon checks in this function probably do not work on unidentified weapons.
+-- This is mostly not an issue now that floor-ID is a thing, but it may cause problems with antique shops.
+-- TODO: Antique shop compatibility review?
+-- TODO: This function was previously a mess. It needs extension/rewrite to use relative item weights,
+-- much like the armour function has. I guess the half-written skeleton above was meant to be that, but
+-- I never finished it?
 function check_desired_weapon(it)
-    -- if we have this weapon equipped, we're keeping it for now
+    -- never autodrop our currently equipped weapon
     if it.equipped then return true end
+
+    -- autodropping two-handed weapons for now
+    -- XXX: it.hands is listed in l-item.cc among the dlua functions,
+    -- to me, that reads as an error in placement, as the function has no dlua check,
+    -- but this functionality could be removed at any time.
+    -- TODO: Add a dynamic 2h permissivity check for Spriggans, berserkers, etc.
+    -- (The script is pretty dumb for now though, and it's very likely to do better with a shield.)
+    if it.hands ~= 1 then return false end
 
     local weapon_skill = skwrap("melee")
     local launcher_skill = skwrap("launcher")
@@ -2994,37 +3036,17 @@ function check_desired_weapon(it)
         end
     end
 
-    if best_it == nil and it.weap_skill == compare_skill then       -- somehow we have a weapon skill, but no weapon?
-        return true
-    end
+    -- somehow we have a weapon skill, but no weapon?
+    if best_it == nil and it.weap_skill == compare_skill then return true end
 
-    -- higher damage base type than our best in inventory, pick it up
-    if it.damage > best_it.damage then
-        return true
-    end -- i think this check isn't working on not-fully-id'd weapons?
+    -- higher damage base type than our best in inventory, keep it
+    if it.damage > best_it.damage then return true end
 
-    -- artefact or ego weapon/launcher with a base type equivalent or better to what we have, pick it up
-    -- TODO: figure out if it.damage returns a value for unid weapons?
-    if ( it.artefact or it.ego(true) ) and it.damage >= best_it.damage then
-        return true
-    end
+    -- artefact or ego weapon/launcher with a base type equivalent or better to what we have, keep it
+    if ( it.artefact or it.ego(true) ) and it.damage >= best_it.damage then return true end
 
-    -- equal or better plus and equal base type, pick it up
-    -- (i think it wont let me compare plus against unid)
---	if it.damage == best_it.damage and it.plus >= best_it.plus then
-
-    -- same base type (previously unid check)
-    -- TODO: fix this up, it's probably going to be a source of weird re-equip problems now?
-    if it.damage == best_it.damage then
-        return true
-    end -- again, i think the it.damage checks aren't working with unid stuff
-
-
-    -- i probably need a set of weapon class comparison tables against it.name(),
-    -- assuming that it.damage can't be checked properly against not-fully-id'd stuff
-
-    -- i'm not sure how what's written here will interact with unidentified items,
-    -- TODO: test all of this and verify the it.damage, it.ego, it.artefact behavior for unid weapons
+    -- equal or better plus and equal base type, keep it
+	if it.damage == best_it.damage and it.plus >= best_it.plus then return true end
 
     return false
 end
