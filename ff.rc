@@ -3086,8 +3086,9 @@ local armour_base_def_table = {
 
     -- EQ_BOOTS
     {"boots", 1, 0, nil, true},
-    {"centaur barding", 4, -60, nil, true},     -- not weighting ["EV"] against bardings, *yet*
-    {"naga barding", 4, -60, nil, true},
+--    {"centaur barding", 4, -60, nil, true},   -- old v, barding types were merged into "barding"
+--    {"naga barding", 4, -60, nil, true},
+    {"barding", 4, -60, nil, true},        -- not weighting ["EV"] against bardings, *yet*
 
     -- EQ_SHIELD                                -- also not weighting ["EV"] against shields yet
     {"buckler", 3, -8, nil, false},             -- "Note: shields use ac-value as sh-value, EV pen is used as the basis
@@ -3110,7 +3111,7 @@ local armour_base_def_table = {
 local dragon_armour_base_props_table = {
     {"steam dragon scales", {["rSteam"] = 1,} },
     {"acid dragon scales", {["rCorr"] = 1,} },
-    {"quicksilver dragon scales", {["MR"] = 1,} },
+    {"quicksilver dragon scales", {["Will"] = 1,} },
     {"swamp dragon scales", {["rPois"] = 1,} },
     {"fire dragon scales", {["rF"] = 2, ["rC"] = -1,} },
     {"ice dragon scales", {["rC"] = 2, ["rF"] = -1,} },
@@ -3154,11 +3155,14 @@ local artprop_weight_table = {
     {"rElec", 300}, -- needs special case fn, {300 or 0}
     {"rPois", 150}, -- needs special case fn, {150 or 0}
     {"rN", 30},     -- needs special case fn, {30 or 0 with rN3}
-    {"MR", 150},    -- needs special case fn, {150 or 0} with enough MR to resist Mark
+    {"Will", 175},    -- needs special case fn, {175 or 0} with enough Will to resist Mark / Petrify
+    -- old value was {150} before MR -> Will and Lich books gaining Petrify
     {"SInv", 30},   -- needs special case fn, {30 or 0}
     {"+Inv", 250},  -- needs special case fn, {250 or 0}, also may need logic for script to use +inv
-    {"+Fly", 0},    -- needs special case fn, {0 or 75} if this prop is on boots
+    {"Fly", 40},    -- needs special case fn, {0 or 75} if this prop is on boots
+    -- Fly is always-on now, it's okay to put a low value on this, because it will help the script slightly
     {"+Fog", 250},  -- needs special case fn, {250 or 0}, (but maybe it doesn't since this is really only on Thief?)
+    -- ARTP_FOG has been removed ?? I guess cloak of the thief just has *Fog now or something? TODO: Look this up
     {"+Blink", 0},
     {"+Rage", 180}, -- needs special case fn, {250 or 0} 
                     -- +Rage is at *least* 250, but i want its relative amu rating to be a little lower for now
@@ -3169,13 +3173,18 @@ local artprop_weight_table = {
     {"-Tele", -1000},
     {"*Rage", -75},
 --    {"Hungry", -200}, -- old ver
-    {"*Contam", 0}, -- needs special case fn, to never remove this unless !cancellation is available (nor equip this?)
+    {"Contam", -1000}, -- needs special case fn, to never remove this unless !cancellation is available (nor equip this?)
+    -- This was *Contam, but I guess the string was changed?
+    -- I'm nuking this value for now, so the script doesn't try to equip it
 --    {"Acc", 30}, -- old ver
 --    {"Slay", 100},    -- baseline
-    {"*Curse", -1000},  -- likely to break autoequip, scythe of curses isn't worth that
-    {"Stlth", -150},    -- this may need special case fn: stlth multi needs to be absolute value, negative stealth is also bad
+    {"*Curse", -1000},  -- old ver, removed
+    {"Stlth", 0},    -- Stealth can come in + or - flavours: This requires special casing   TODO: Stealth artp special casing
+    -- I'm setting artprop Stlth mod to {0} for now, with the difficulty changes, it can be useful to have,
+    -- even though it screws up monster positioning (this was {-150}, which was an erroneous valuation without special casing)
     {"MP", 0},      -- needs special case fn, {0 or _something_} depending if using damage spells {this value relative to Int val}
     {"Delay", 0},   -- don't yet know where this is used, leaving it unvalued for now
+    -- TODO: Look up where ARTP_BASE_DELAY is used
     {"HP", 20},
     {"Clar", 200},  -- only exists on 2 items, no real need to special case this
     {"BAcc", 30},
@@ -3188,136 +3197,148 @@ local artprop_weight_table = {
     {"rMut", 300},  -- only exists on 2 items, no real need to add {300 or 0} special case
 --    {"+Twstr", 0}, -- old ver     -- this code must be very old
     {"*Corrode", -200},
-    {"*Drain", -100},   -- needs special case, cannot remove this unless swap-to item is massively better
+    {"Drain", -100},   -- needs special case, cannot remove this unless swap-to item is massively better
     {"*Slow", -200},
     {"Fragile", 0},     -- needs special case, cannot remove this unless we *really* want to destroy it
     {"SH", 40},
-    {"Harm", -1000}, }
+    -- TODO: Check if ARTP_SHIELDING is always fixed-value at +5 SH now? (If so, update this.)
+    {"Harm", -1000},
+    {"Rampage", 0},
+    {"Archmagi", 0}, }
 
 -- apparently some of the armour and jewellery egos have baked-in values, instead of using the item's plus
 -- i need to figure out which ones these are, 
 -- so i can bake their baked-in plus multis into my armour/jewellery ego val tables
 
--- armour ego todos:
--- run, ponderous, Fly (SPARM_FLY is not +Fly), Archmagi, Spirit, archery, cloud immunity, buggy
-
--- jewellery ego todos:
--- attention (not sure if this is the same as *Noise), wizardry, fire, ice, teleport control, magic regeneration,
--- gourmand, acrobat, conservation, controlled flight, inaccuracy, nothing, guardian spirit, faith, buggy jewellery
+-- ego TODO: dynamic prop weighting
+-- ego TODO: weights for spellcasting egos (requires dynamic weighting)
+-- ego TODO: look up which egos and artprops were changed to always grant fixed bonuses; 
+--           that has changed since this script was written
 
 -- armour ego type table
 --
--- these ego type tables are called with (terse = false), because the code in item-name.cc omits some information
--- and returns some ego types out of order when called with (terse = true)
+-- These ego tables are called with (terse == true), because the Crawl devteam hasn't been updating the (terse == false)
+-- returns to keep up with removed egos. This is the kind of thing I could probably open a mainline PR for, but if I want
+-- to keep my script more compatible with future versions, it's easier just to use (terse == true).
 --
 -- I *could* merge these tables with the artprop table above, but some armour egos and some jewellery egos
 -- grant bonuses at fixed multipliers of those in the artprop table; things like "AC+3".
--- For now, it's easier to have the data from each table here separately, even though it means some value duplication across
--- the three tables. These tables will probably be merged after I've confirmed the in-game behavior of each ego.
+-- It's easier to have the data from each table here separately, even though it means some value duplication across
+-- the three tables.
 --
--- armour ego names in this table were sourced from item-name.cc, armour_ego_name(), (terse = false)
+-- armour ego names in this table were sourced from item-name.cc, armour_ego_name(), (terse == true)
 local armour_ego_weight_table = {
-    {"", 0},        -- SPARM_NORMAL
-    -- TODO: make sure that having an empty string match at the top here won't mess with armour ego code
-    {"running", 175},   -- SPARM_RUNNING, "run"     -- i'd take 2 slay over run because fuck manual kiting, 
-    -- but -rundelay is quite strong and i don't want to rate this *too* low either.
-    -- if this script ever does auto-kiting, running should be changed to extremely high value. {300}? +?
-    {"speedy slithering", 175}, -- SPARM_RUNNING, with its non-terse ego type return mangled for naga bardings
-        -- "to avoid player confusion, it used to be {sslith}."     -- Thank you, crawlcode.
-    {"fire resistance", 200},   -- SPARM_FIRE_RESISTANCE, "rF+"
-    {"cold resistance", 125},   -- SPARM_COLD_RESISTANCE, "rC+"
-    {"poison resistance", 150}, -- SPARM_POISON_RESISTANCE, "rPois"
-    {"see invisible", 30},  -- SPARM_SEE_INVISIBLE, "SInv"
-    {"invisibility", 250},  -- SPARM_INVISIBILITY, "+Inv"
-    {"strength", 150},  -- SPARM_STRENGTH, "Str+3"
-    {"dexterity", 120}, -- SPARM_DEXTERITY, "Dex+3"
-    {"intelligence", 0},    -- SPARM_INTELLIGENCE, "Int+3"      -- TODO: revisit this
-    {"ponderousness", -175},    -- SPARM_PONDEROUSNESS, "ponderous"     -- negative running seems about right, 
-    -- the ac bonus will be factored in with the armour's plus
-    {"flying", 200},    -- SPARM_FLYING, "Fly"      -- this is boot perma-Fly, I think?
-    -- this can help the script to not get stuck on terrain; it is accordingly rated higher here than it would be for manual play.
-
-    {"magic resistance", 150},  -- SPARM_MAGIC_RESISTANCE, "MR+"
-    {"protection", 200},    -- SPARM_PROTECTION, "AC+3"
-    {"stealth", -150},  -- SPARM_STEALTH, "Stlth+"
-    {"resistance", 325},    -- SPARM_RESISTANCE, "rC+ rF+"
-    {"positive energy", 30},    -- SPARM_POSITIVE_ENERGY, "rN+"
-    {"the Archmagi", 0},    -- SPARM_ARCHMAGI, "Archmagi"   -- currently, we do not value offensive spellcaster equipment   -- TODO: this
---    {"jumping", 150}, -- SPARM_JUMPING, "obsolete"        -- old ver
-    -- jumping was like, wu jian for 1 version or something, i think? this rating is probably off but it doesn't matter.
---    {"preservation", 250},    -- SPARM_PRESERVATION, "obsolete"   -- old ver
-    {"reflection", 40}, -- SPARM_REFLECTION, "reflect"
-    -- this ego uses shield + to determine reflect val, i need to special case this to multiply by SH base val + item plus
-    {"spirit shield", 250}, -- SPARM_SPIRIT_SHIELD, "Spirit"
-    {"archery", 100},   -- SPARM_ARCHERY, "archery"
+    {"", 0},            -- SPARM_NORMAL
+    {"rF+", 200},       -- SPARM_FIRE_RESISTANCE
+    {"rC+", 125},       -- SPARM_COLD_RESISTANCE
+    {"rPois", 165},     -- SPARM_POISON_RESISTANCE
+    -- rPois is more valuable in current versions with adjusted rate of player poison damage, too....
+    -- old value here was {150}, I'm adjusting to {165}
+    {"SInv", 30},       -- SPARM_SEE_INVISIBLE
+    {"+Inv", 250},      -- SPARM_INVISIBILITY
+    {"Str+3", 150},     -- SPARM_STRENGTH
+    {"Dex+3", 120},     -- SPARM_DEXTERITY
+    {"Int+3", 0},       -- SPARM_INTELLIGENCE
+    {"ponderous", -175},-- SPARM_PONDEROUSNESS
+    -- negative running seems about right, the ac bonus will be factored in with the armour's plus
+    {"Fly", 200},       -- SPARM_FLYING
+    -- flight can help the script to not get stuck on terrain; it is accordingly rated higher here than it would be for manual play
+    {"Will+", 175},     -- SPARM_WILLPOWER
+    -- willpower is more valuable in versions past 0.27, with lich books having gained petrify
+    -- Will+ should probably be bumped to the {200} range, (old valuation was {150}), I'm bumping to {175} for now
+    {"AC+3", 200},      -- SPARM_PROTECTION
+    {"Stlth+", -150},   -- SPARM_STEALTH
+    {"rC+ rF+", 325},   -- SPARM_RESISTANCE
+    {"rN+", 30},        -- SPARM_POSITIVE_ENERGY
+    {"Archmagi", 0},    -- SPARM_ARCHMAGI
+    {"rCorr", 250},     -- SPARM_PRESERVATION
+    -- new preservation is rCorr + rAcid, I think? lower bound rCorr {125}, upper bound {???}
+    -- rAcid would probably be slightly more valuable than Archery, maybe in the ballpark of 1 point of rC+ or Dex+3?
+    -- {250} is probably not an unreasonable value to retain for new preservation, then?
+    {"reflect", 40},    -- SPARM_REFLECTION
+    -- this ego uses shield + to determine reflect val, i've special cased this to multiply by SH base val + item plus
+    {"Spirit", 250},    -- SPARM_SPIRIT_SHIELD
+    {"archery", 100},   -- SPARM_ARCHERY
     -- 4 slay for ranged attacks only, {400 / 2} == {200} ? this is a really dumb way to value it, but..
-    -- a more appropriate weighting would be against frequency of using ranged attacks
-    -- i don't really want the script to take archery over gloves of strength; i need to reduce this to around {120} or {100}
-    {"repulsion", 200}, -- SPARM_REPULSION, "repulsion"
-    {"cloud immunity", 35}, -- SPARM_CLOUD_IMMUNE, "cloud immunity"
-    -- technically, the script will kickback to player atop any dangerous cloud, so this is useless to the script itself, (at
-    -- least unless the cloud kickback behavior is made conditional), but it may still have marginal value to the player.
-    -- lower bound {30}, rN+ vs. miasma, upper bound {40}, i'd still rather take 1 dex 
-    -- TODO: i might want to revisit this to allow the script the chance to ignore clouds, that probably has value
-    {"bugginess", 0}, } -- default armour ego fallthrough in the c switch case, "buggy"
+    -- a more appropriate weighting would be dynamic, vs. frequency of using ranged attacks
+    -- to prevent the script taking archery over gloves of strength, this has been reduced to {100}
+    {"repulsion", 200}, -- SPARM_REPULSION
+    {"harm", -1000},    -- SPARM_HARM
+    -- several of these were added as armour egos with the introduction of scarves
+    {"shadows", 160},   -- SPARM_SHADOWS
+    -- shadows upper bound might be +Fog at {250} (doesn't that seem undervalued, though? Probably undervalued due to unscripted..)
+    -- the practical way to weight this is going to be vs. other scarf egos,
+    -- in which case it's probably less valuable to the script than passive rMsl, as the scripted positioning tends to be floaty
+    -- a better upper bound might be vs. {cloak of Will+}, which I'd prefer the script use over -1 LOS
+    -- so if Will is {175} for now, let's try setting shadows at {150}?
+    -- a good lower bound is probably Str+3 {150}, I'd take Shadows over that any day. (So set this at {160} ??)
+    {"rampage", 0},     -- SPARM_RAMPAGING
+    -- TODO: for the script to use rampage safely, I'll need to account for it in the pathing code....
+    {"obsolete", 0},    -- This is the (terse == true) return for removed egos. 
+    -- at time of writing: (SPARM_RUNNING, SPARM_JUMPING, SPARM_CLOUD_IMMUNE)
+    {"buggy", 0}, }     -- default armour ego fallthrough
 
 
--- jewellery ego names sourced from item-name.cc, jewellery_effect_name(), (terse = false)
+-- jewellery ego names sourced from: 
+-- item-name.cc, jewellery_effect_name(), (terse == true)
+-- for those types which match, describe.cc, jewellery_base_ability_string()
+-- any jewellery type which matches item-prop.cc, bool jewellery_has_pluses(), is moved to a separate table below
 local jewellery_ego_weight_table = {
---    {"obsoleteness", 225},    -- RING_REGENERATION        -- old ver
---    {"protection", 67},   -- RING_PROTECTION      -- moved to plus table, see below
-    {"protection from fire", 200},  -- RING_PROTECTION_FROM_FIRE
-    {"poison resistance", 150}, -- RING_POISON_RESISTANCE
-    {"protection from cold", 125},  -- RING_PROTECTION_FROM_COLD
---    {"strength", 50}, -- RING_STRENGTH    -- moved to plus table
---    {"slaying", 100}, -- RING_SLAYING     -- moved to plus table
-    {"see invisible", 30},  -- RING_SEE_INVISIBLE
-    {"resist corrosion", 125},  -- RING_RESIST_CORROSION
-    {"attention", -200},    -- RING_ATTENTION       -- rating this as *Noise for now, although I'm not sure if they use identical behavior
-    {"teleportation", -1000},   -- RING_TELEPORTATION
---    {"evasion", 75},  -- RING_EVASION     -- moved to plus table
---    {"sustain attributes", 40},   -- RING_SUSTAIN_ATTRIBUTES      -- old ver
-    {"stealth", -150},  -- RING_STEALTH
---    {"dexterity", 40},    -- RING_DEXTERITY       -- moved to plus table
---    {"intelligence", 0},  -- RING_INTELLIGENCE    -- TODO: revisit        -- moved to plus table
-    {"wizardry", 0},    -- RING_WIZARDRY        -- TODO: revisit function logic for things like Wiz, +Int, +MP
-    {"magical power", 0},   -- RING_MAGICAL_POWER       -- this is a static MP+9 , I think?
-    {"flight", 0},  -- RING_FLIGHT
-    {"positive energy", 30},    -- RING_LIFE_PROTECTION
-    {"protection from magic", 150}, -- RING_PROTECTION_FROM_MAGIC
-    {"fire", 75},   -- RING_FIRE    -- rF+ rC- and we don't care about enhancers yet, these are simple
-    {"ice", -75},   -- RING_ICE
---    {"teleport control", 150},    -- RING_TELEPORT_CONTROL        -- old ver  -- this was very handy for rune vaults, i kind of miss it
-    {"rage", 180},  -- AMU_RAGE
-    -- +rage is much more useful than this value implies, but i don't want the script to take it all the time and use it poorly
-    -- TODO: I should probably add scripted rage logic, so I can value it appropriately
-    {"harm", -1000},    -- AMU_HARM
-    {"magic regeneration", 0},  -- AMU_MANA_REGENERATION    -- TODO: revisit
-    {"gourmand", 0},    -- AMU_THE_GOURMAND     -- TODO: maybe revisit with the spellcasting stuff, maybe not
-    {"the acrobat", 200},   -- AMU_ACROBAT
+    {"", 0},            -- AMU_NOTHING
+    {"rF", 200},        -- RING_PROTECTION_FROM_FIRE
+    {"rPois", 165},     -- RING_POISON_RESISTANCE
+    {"rC+", 125},       -- RING_PROTECTION_FROM_COLD
+    {"sInv", 30},       -- RING_SEE_INVISIBLE
+    {"rCorr", 125},     -- RING_RESIST_CORROSION
+    {"*Tele", -1000},   -- RING_TELEPORTATION   -- old ver, removed
+--    {"SustAt", 40},     -- RING_SUSTAIN_ATTRIBUTES      -- old ver, removed
+    {"Stlth+", -150},   -- RING_STEALTH
+    {"Wiz", 0},         -- RING_WIZARDRY
+    {"MP+9", 0},        -- RING_MAGICAL_POWER
+    {"Fly", 90},       -- RING_FLIGHT
+    -- This is now just passive flight, I can weight it similarly to boots?
+    -- Except maybe I don't want to, because there are more useful ring egos than boots egos?
+    -- lower bound Fire {75}, upper bound rCorr {125}? I'll leave it under {100} because it's not actually super useful
+    {"rN+", 40},        -- RING_LIFE_PROTECTION
+    -- actually this might be a little higher than {30} now that many undead do rN passive skill drain on-hit
+    -- old value {30}, new value {40}?? (it's still way better just to have EV or dex...)
+    {"Will+", 175},     -- RING_WILLPOWER
+    {"Fire", 75},   -- RING_FIRE    -- rF+ rC- and we don't care about enhancers yet, these are simple
+    {"Ice", -75},   -- RING_ICE
+--    {"+cTele", 150},    -- RING_TELEPORT_CONTROL        -- old ver  -- this was very handy for rune vaults, i kind of miss it
+    {"+Rage", 180},     -- AMU_RAGE    -- old ver, removed?
+    -- +Rage was much more useful than this value implied, but i didn't want the script to take it all the time and use it poorly
+    -- TODO: Even though this was removed, I should still add scripted rage logic, for Trog
+    {"Harm", -1000},    -- AMU_HARM     -- old ver, removed
+    {"RegenMP", 0},     -- AMU_MANA_REGENERATION
+    {"Gourm", 0},       -- AMU_THE_GOURMAND    -- old ver, removed
+    {"Acrobat", 200},   -- AMU_ACROBAT
     -- i don't value acrobat super highly in manual play, but for the script making "dumb" moves, this might be more helpful
---    {"conservation", 250},    -- AMU_CONSERVATION     -- old ver  -- if we're playing ancient crawl, conservation is at least 250 value
---    {"controlled flight", 0}, -- AMU_CONTROLLED_FLIGHT        -- old ver
-    {"inaccuracy", -150},   -- AMU_INACCURACY       -- (possibly {-30} * whatever inacc effect strength is?)
+--    {"Cons", 250},      -- AMU_CONSERVATION     -- old ver  -- if we're playing ancient crawl, conservation is at least 250 value
+--    {"cFly", 0},        -- AMU_CONTROLLED_FLIGHT        -- old ver, removed
+    {"Inacc", -150},    -- AMU_INACCURACY    -- old ver, removed     -- (possibly {-30} * whatever inacc effect strength is?)
     -- it looks like inacc loses 5 to-hit per point of inacc, so this would be {-150}; i eyeballed it at {-200}, so, sure.
-    {"nothing", 0}, -- AMU_NOTHING
-    {"guardian spirit", 250},   -- AMU_GUARDIAN_SPIRIT
-    {"faith", 220}, -- AMU_FAITH        -- faith is really good, but the script is not likely to make best use of it
---    {"reflection", 40},   -- AMU_REFLECTION       -- moved to plus table
-    {"regeneration", 225},  -- AMU_REGENERATION
-    {"buggy jewellery", 0}, }   -- default jewellery ego fallthrough in the c switch case
+    {"Spirit", 250},    -- AMU_GUARDIAN_SPIRIT
+    {"Faith", 220},     -- AMU_FAITH        -- faith is really good, but the script is not likely to make best use of it
+    {"Reflect", 200},   -- AMU_REFLECTION    -- AMU_REFLECTION is now a static +5 SH
+    -- old value was {40} per-point in the plus ego table
+    {"Regen", 225},     -- AMU_REGENERATION
+    {"obsoleteness", 0},  -- This is the (terse == true) return for *some* removed jewellery,
+    -- but apparently not most of them, because of course, Crawlcode.
+    -- At time of writing: (RING_REGENERATION, RING_ATTENTION)
+    -- TODO: I should really put in a mainline PR to fix this because it's not even self-consistent within (terse == true).
+    {"buggy", 0}, }   -- default jewellery ego fallthrough
 
 
 -- these are the only jewellery types that get pluses, so they get their own table:
 -- sourced from item-prop.cc, bool jewellery_has_pluses()
 local jewellery_plus_ego_weight_table = {
-    {"slaying", 100},   -- RING_SLAYING
-    {"protection", 67}, -- RING_PROTECTION
-    {"evasion", 75},    -- RING_EVASION
-    {"strength", 50},   -- RING_STRENGTH
-    {"intelligence", 0},    -- RING_INTELLIGENCE        -- TODO: revisit
-    {"dexterity", 40},  -- RING_DEXTERITY
-    {"reflection", 40}, }   -- AMU_REFLECTION
+    {"Slay", 100},  -- RING_SLAYING
+    {"AC", 67},     -- RING_PROTECTION
+    {"EV", 75},     -- RING_EVASION
+    {"Str", 50},    -- RING_STRENGTH
+    {"Int", 0},     -- RING_INTELLIGENCE
+    {"Dex", 40}, }  -- RING_DEXTERITY
 
 
 -- get the base value (prop value) for an armour item
@@ -3376,7 +3397,7 @@ end
 -- currently, this function is only written to work with armour and jewellery
 function get_prop_value(it)
     local value = 0
-    local it_ego = it.ego(false)    -- our armour and jewellery ego tables use terse = false
+    local it_ego = it.ego(true)    -- our armour and jewellery ego tables now use (terse == true)
     local it_class = it.class(true)
     local it_plus = it.plus
     local it_name = it.name()
@@ -3396,14 +3417,14 @@ function get_prop_value(it)
         end
     end
 
-    -- apply values for it.ego(false), if it has an ego
+    -- apply values for it.ego(true), if it has an ego
     if it_ego then
 
         if it_class == "armour" then
             for _, armour_ego_type in ipairs(armour_ego_weight_table) do
                 if it_ego == armour_ego_type[1] then
                     -- special case for shield reflection
-                    if it_ego == "reflection" and it.subtype() == "shield" and it_plus then
+                    if it_ego == "reflect" and it.subtype() == "shield" and it_plus then
                         value = value + (armour_ego_type[2] * (it.ac + it_plus))
                     else
                         value = value + armour_ego_type[2]
