@@ -2459,17 +2459,14 @@ local armour_types = {
 -- as in item-name.cc, _wand_type_name()
 local wand_types = {
     {nil, true, 27},    -- autopick unid wands, please
-    {"flame", false, 8},
-    {"paralysis", true, 13},        -- TODO: if i'm adding XL checks here, I need to also add an Evocations check
+    {"flame", true, 16},
+    {"paralysis", true, 13},
     {"digging", true, 27},
     {"iceblast", true, 19},
     {"polymorph", true, 13},
-    {"enslavement", false, 10},
+    {"charming", true, 10},
     {"acid", true, 27},
-    {"random effects", false, 5},
-    {"disintegration", true, 10},
-    {"clouds", true, 27},
-    {"scattershot", true, 19},
+    {"mindburst", true, 10},
     {"removedness", true, 27},
     {"bugginess", true, 27}, }
 
@@ -3708,6 +3705,7 @@ function check_desired_item_types(it, name)
         end
     end
 
+    -- TODO: Dynamic evocations-based wand/evoker autopickup checks?
     if class == "wand" then
         for _, wtype in ipairs(wand_types) do
             if subtype == wtype[1] then
