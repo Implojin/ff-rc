@@ -2620,8 +2620,6 @@ local staff_types = {
 
 -- setting orb autopick to false for now so the Zot goal can do Z:5 without autoexplore prematurely starting the orbrun
 local orb_types = {
---    {nil, true},      -- see items.subtype() limitations below
---    {"orb of Zot", true}, }
     {nil, false},       -- see items.subtype() limitations below
     {"orb of Zot", false}, }
 
