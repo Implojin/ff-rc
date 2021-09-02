@@ -2558,13 +2558,14 @@ local jewellery_types = {
     {"ring of buggy jewellery", true},
     {"amulet of buggy jewellery", true}, }
 
+-- as in item-name.cc, potion_type_name()
 local potion_types = {
     {nil, true},    -- do pickup unidentified potions, please
     {"curing", true},
     {"heal wounds", true},
     {"haste", true},
     {"might", true},
-    {"stabbing", false},
+    {"attraction", false},
     {"brilliance", false},
     {"gain strength", true}, -- old ver
     {"gain dexterity", true}, -- old ver
