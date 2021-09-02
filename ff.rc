@@ -1137,8 +1137,10 @@ function equip(it)
                 it.puton()
             end
         else
+            -- Here we're using a blind sendkeys(), because of an issue with the script stalling out
+            -- during amulet equip delay, when equipping with it.puton()
             crawl.mpr("Trying to equip jewellery: " .. itname)
-            it.puton()
+            crawl.sendkeys("P" .. items.index_to_letter(it.slot))
         end
     else
         crawl.mpr("Couldn't equip item: " .. itname .. " , is it not armour or jewellery?")
@@ -1314,7 +1316,7 @@ end
 function check_better_equips()
     for it in inventory() do
         if not it.equipped then
-            if it.class(true) == "armour" or (it.class(true) == "jewellery" and it.name():find("ring")) then
+            if it.class(true) == "armour" or it.class(true) == "jewellery" then
                 local equipped = nil
                 local equip_value = nil
                 -- here we use a wrapper to handle ring slots
@@ -1323,7 +1325,7 @@ function check_better_equips()
                 local it_value = get_prop_value(it)
 
                 if equipped ~= nil then
-                    equip_value = get_prop_value(equipped)      -- i need this to work with non-artefact items before using this fn
+                    equip_value = get_prop_value(equipped)
 
                     -- there's no guarantee that we have remove curse available, so we bail if the equipped slot is cursed
                     if it_value > equip_value and not is_slot_cursed(equipped) then
@@ -2197,6 +2199,13 @@ function explore()
 
         if you_are_cursed() and rc_scroll then
             read(rc_scroll)
+        -- XXX: TODO: This equip check should be further up, above the explore() section.
+        -- The script needs to do a better job of maximizing front-end advantage;
+        -- If a player finds good gear, they don't wait until the end of the floor to maybe get killed by things
+        -- before equipping it. They retreat somewhere safe to equip it.
+        -- The only reason to defer this check so long is to limit the scenarios where the script strips naked
+        -- after causing noise; *both* of those scenarios would be better handled by retreating to a safe area,
+        -- prior to equipping or resting.
         elseif gear then
             equip(gear)
         elseif ea_target then
@@ -3341,7 +3350,7 @@ local jewellery_plus_ego_weight_table = {
     {"Dex", 40}, }  -- RING_DEXTERITY
 
 
--- get the base value (prop value) for an armour item
+-- get the base value (equivalent prop value) for an armour item
 -- this compares it.name() only, so it should work with any ident flags (including unidentified items),
 -- this does not check egos or pluses. handling those depends on ident flags, so they are handled separately by get_prop_value()
 -- this function is only intended to work with items of type it.class(true) == "armour"
@@ -3355,23 +3364,26 @@ function get_armour_base_value(it)
             -- but they're only going to be compared against other shields...
 --            value = value + (artprop_weight_table[3][2] * 3 * armour_type_name[2])    -- [3][2] should be AC+1 value in the artprop table
 
+            -- TODO: proper AEVP calculations, instead of this dumb normalization approach that ignores the actual character stats
+            -- XXX: At some point, this really needs to take into account character Str, Dex, Int,
+            -- current Armour/Dodging/Shields, skill aptitudes, and current primary offensive skill (to account for spellcasting chars)
+
+            -- Note: I've flipped the "AC" and "EV" values intentionally here, to allow the script to weight
+            -- base AC more highly than base EV. Hopefully, this will produce better results.
             if it_name:find("troll") or it_name:find("crystal") then
                 if armour_type_name[1]:find("troll") or armour_type_name[1]:find("crystal") then
-                    value = value + (67 * armour_type_name[2])      -- base ["AC"] bonus
+                    value = value + (75 * armour_type_name[2])      -- base ["AC"] bonus
                     if armour_type_name[4] ~= nil then
-                        value = value + (75 * armour_type_name[4])  -- normalized ["EV"] bonus
+                        value = value + (67 * armour_type_name[4])  -- normalized ["EV"] bonus
                     end
                 end
                 -- don't add extra value to CPA or TLA for false it_name:find() matches
             else
-                value = value + (67 * armour_type_name[2])      -- base ["AC"] bonus
+                value = value + (75 * armour_type_name[2])      -- base ["AC"] bonus
                 if armour_type_name[4] ~= nil then
-                    value = value + (75 * armour_type_name[4])  -- normalized ["EV"] bonus
+                    value = value + (67 * armour_type_name[4])  -- normalized ["EV"] bonus
                 end
             end
-
-            -- TODO: "proper" AEVP calculations, instead of this dumb normalization approach that ignores the actual character stats?
-
         end
     end
 
@@ -3383,7 +3395,10 @@ function get_armour_base_value(it)
                 for dscale_prop_key,dscale_prop_val in pairs(dscale_type[2]) do
                     for _, artprop in ipairs(artprop_weight_table) do
                         if dscale_prop_key == artprop[1] then
-                            value = value + (dscale_prop_val * artprop[2])
+--                            value = value + (dscale_prop_val * artprop[2])
+                            -- experimental: Dropping base armour type prop weights to 1/3, because
+                            -- the script was previously drastically undervaluing base AC.
+                            value = value + ((dscale_prop_val * artprop[2]) / 3)
                         end
                     end
                 end
@@ -3411,8 +3426,9 @@ function get_prop_value(it)
 
         value = value + get_armour_base_value(it)
 
+        -- XXX: TODO: This magic number is "AC" weighting, applied to enchant "plus" value
+        -- At some point, I should pull this magic number out and use the prop table "AC" value?
         if it_plus then
---            value = value + (artprop_weight_table[3][2] * it_plus)
             value = value + (67 * it_plus)
         end
     end
@@ -3427,7 +3443,12 @@ function get_prop_value(it)
                     if it_ego == "reflect" and it.subtype() == "shield" and it_plus then
                         value = value + (armour_ego_type[2] * (it.ac + it_plus))
                     else
-                        value = value + armour_ego_type[2]
+                        -- reduce ego weighting to 1/3 for body armour, base AC is more important
+                        if it.subtype() == "body" then
+                            value = value + (armour_ego_type[2] / 3)
+                        else
+                            value = value + armour_ego_type[2]
+                        end
                     end
                 end
             end
@@ -3504,9 +3525,10 @@ function get_best_known_armour_slot_item_by_value(slot_type)
     local best = nil
     for it in inventory() do
         if it.subtype() == slot_type then
-            if best == nil or 
-               (get_armour_base_value(it) >= get_armour_base_value(best) and get_prop_value(it) > get_prop_value(best)) then
-                   best = it
+            -- base type value is baked into get_prop_value(); there *should* be no need for a base type check here,
+            -- if the weights are correct.
+            if best == nil or get_prop_value(it) > get_prop_value(best) then
+                best = it
             end
         end
     end
@@ -3531,9 +3553,10 @@ function check_desired_armour_v2(it)
     -- if we don't have anything for this slot, then keep it
     if best == nil then return true end
 
-    -- For identified equippables, we keep them if their base type and prop value are >= our best item for the slot.
+    -- For identified equippables, we keep them if their prop value is >= our best item for the slot.
+    -- base type value is baked into get_prop_value(); there *should* be no need for a base type check here if the weights are correct.
     local it_name = it.name()
-    if get_armour_base_value(it) >= get_armour_base_value(best) and get_prop_value(it) >= get_prop_value(best) then
+    if get_prop_value(it) >= get_prop_value(best) then
         -- Here we try to guard against keeping duplicate items with equivalent type and prop values, like +0 ring mail.
         local count = 0
         for stuff in inventory() do
@@ -3566,6 +3589,48 @@ function check_desired_armour_v2(it)
             -- this value is "anything >= +5 slaying equivalent"
             if get_prop_value(it) >= 500 then return true end
         end
+    end
+
+    -- otherwise, drop it
+    return false
+end
+
+-- TODO: Maybe merge this with the check_desired_armour_v2() function?
+function check_desired_jewellery(it)
+    -- never autodrop currently equipped jewellery
+    if it.equipped then return true end
+
+    if it.is_useless then return false end
+
+    -- If an equippable is unidentified, we need to indicate to autopick that we want it, for explore_greedy to path to it,
+    -- so that it can be properly identified by floor-ID.
+    -- TODO: Antique shop handling. Antique shop contents are unidentified, and need special handling.
+    -- TODO: Verify that the remainder of this function properly handles autodrop for unwanted equippables.
+    if not it.fully_identified then return true end
+
+    local value = get_prop_value(it)
+
+    -- always drop negative value jewellery, all further checks assume >= 0 value
+    if value < 0 then return false end
+
+    -- If we don't have anything for this slot, then keep it
+    local worst = check_worst_equipped_at(it.equip_type)
+    if worst == nil then return true end
+
+    -- Keep it if its prop value is >= (our worst equipped item for the slot - 100 value),
+    -- try to drop exact duplicates.
+    local it_name = it.name()
+    if value >= (get_prop_value(worst) - 100) then  -- careful with worst == nil here
+        -- Here we try to guard against keeping identical duplicate jewellery with equivalent prop values.
+        local count = 0
+        for stuff in inventory() do
+            if it_name == stuff.name() then
+                count = count + 1
+            end
+        end
+        if count > 1 then return false end
+
+        return true
     end
 
     -- otherwise, drop it
@@ -3615,21 +3680,8 @@ function check_desired_item_types(it, name)
         return check_desired_armour_v2(it)
     end
 
-    -- XXX: This slay check shouldn't even be here: If I want +Slay, it should be present in the prop values for equippables
-    -- (armour/jewellery/weapons)
-    -- (This bit is probably a holdover from before prop values were implemented, but it should be removed)
-    if it.artefact then
---        if not class == "book" then       -- can't check artprops on artefact books; doing so on roxanne's book crashes the game
-
---        if it.artprops then                   -- I spent a long time hunting down this ["Slay"] bit: it.artprops["thing"] returns
-            if it.artprops and it.artprops["Slay"] then -- nil if the artefact doesn't have that property. You can never assume that
-                if it.artprops["Slay"] < 0 then         -- it's possible to compare to a particular prop's value, without first
-                    return false                        -- checking to see if that specific prop exists on the item.
-                end
-            end     -- cloak of the Thief has Slay-2, maybe come up with smarter logic here
-            return true 
-
---        end       -- moving the book check above the art check due to roxanne, since we're picking up all books anyway
+    if class == "jewellery" then
+        return check_desired_jewellery(it)
     end
 
     -- XXX: Shouldn't this be either above the weapon/armour/jewellery checks, or folded into those functions?
@@ -4315,7 +4367,15 @@ function autoskill(zero)
             subsk = skwrap(skill[1])                    -- this only trains skills on our secondary subtables, mostly defensive
             subsuc = nil
 
-            can_train = you.can_train_skill(subsk)
+            -- you.can_train_skill() seems to be buggy as of 0.27, I suspect there's a bad interaction happening here
+            -- between the Lua API side of this, and the crawlcode it's now wrapping? The Lua wrapper predates the changes made in
+            -- https://github.com/crawl/crawl/commit/69557b85ccbad668db97273aa0c4b6d08e918ea7
+            -- which subtly altered the crawl-side abstraction layer here from "can this skill currently be trained",
+            -- to "do we currently display this skill on the skill window". 
+            -- Consequently, I'm no longer using you.can_train_skill() here, instead comparing directly against nil returns from
+            -- you.skill_cost() .
+            can_train = (you.skill_cost(subsk) ~= nil and you.skill_cost(sk) ~= nil)
+
             if can_train then
 --                if you.skill_cost(subsk) * 4 < you.skill_cost(you.best_skill()) then
                 if you.skill_cost(subsk) * 4 < you.skill_cost(sk) then  -- compare this against the currently-training skill, not the highest skill
@@ -4338,7 +4398,6 @@ function autoskill(zero)
     for _,skill in ipairs(skill_list) do
         can_train = you.can_train_skill(skill)
         if can_train then
-        --if you.can_train_skill(skill) then
             you.train_skill(skill, 2)
             if prev then you.train_skill(prev, 0) end
             prev = skill
@@ -4349,7 +4408,6 @@ function autoskill(zero)
     for _,skill in ipairs(skill_list) do
         can_train = you.can_train_skill(skill)
         if can_train then
-        --if you.can_train_skill(skill) then
             local base = you.base_skill(skill)
             local target = you.get_training_target(skill)
 
