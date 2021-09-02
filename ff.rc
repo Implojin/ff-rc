@@ -3027,6 +3027,11 @@ function check_desired_weapon(it)
         return false
     end
 
+    -- TODO: Is this the best place to add unid weapon autopick post floor-ID?
+    -- I don't want weapons of the wrong skill, but should this check be lower to prevent
+    -- explore_greedy pathing to low base damage weapons of the usable type?
+    if not it.fully_identified then return true end
+
     -- try to find our best weapon in inventory
     local best_it = nil     -- i shouldn't be running this repeatedly inside of autopick,
                             -- this needs to be run once per turn, at most
@@ -3664,11 +3669,13 @@ function check_desired_item_types(it, name)
         return false
     end
 
-    if not it.fully_identified then return true end
-
     if class == "weapon" then               -- adding custom weapon logic before the artefact check,
         return check_desired_weapon(it)     -- we really don't need to pick unusable randart weapons
     end
+
+    -- this is intentionally below the weapon check,
+    -- so that the script does not path to and pickup all weapons with explore_greedy
+    if not it.fully_identified then return true end
 
     if class == "book" then     -- apparently each manual gets its own subtype,
         return true             -- it's easiest to just pick all books here
