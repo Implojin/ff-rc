@@ -2624,28 +2624,28 @@ local orb_types = {
     {"orb of Zot", false}, }
 
 -- item-name.cc, misc_type_name()
--- TODO: probably just want to turn all of these misc types off later
 local misc_types = {
-    {nil, true},    -- this should never happen unless some dev adds an artefact misc, see items.subtype() limitations below
-    {"crystal ball of energy", false},
-    {"box of beasts", true},
-    {"removed ebony casket", false},
-    {"fan of gales", false},
-    {"lamp of fire", false},
-    {"removed lantern of shadows", true},
-    {"horn of Geryon", true},
-    {"lightning rod", false},
-    {"empty flask", false},
-    {"obsolete rune of zot", true},
-    {"removed stone of tremors", false},
-    {"quad damage", true},
-    {"phial of floods", false},
-    {"sack of spiders", false},
-    {"phantom mirror", true},
-    {"figurine of a ziggurat", true},
-    {"removed chess piece", false},
-    {"tremorstone", false},     -- don't know how useful this item will end up being, initialize to true for now
-    {"buggy miscellaneous item", true}, }   -- again, why not
+    {nil, true, 99},    -- this should never happen unless some dev adds an artefact misc, see items.subtype() limitations below
+    {"crystal ball of energy", false, 1},
+    {"box of beasts", true, 1},
+    {"removed ebony casket", false, 1},
+    {"fan of gales", false, 1},
+    {"lamp of fire", false, 1},
+    {"removed lantern of shadows", true, 1},
+    {"horn of Geryon", true, 1},
+    {"lightning rod", false, 1},
+    {"empty flask", false, 1},
+    {"obsolete rune of zot", true, 99},
+    {"removed stone of tremors", false, 1},
+    {"quad damage", true, 99},
+    {"phial of floods", true, 1},
+    {"sack of spiders", false, 1},
+    {"phantom mirror", true, 1},
+    {"figurine of a ziggurat", true, 99},
+    {"piece from Xom's chessboard", false, 1},
+    {"tin of tremorstones", false, 1},
+    {"condenser vane", true, 1},
+    {"buggy miscellaneous item", true, 99}, }   -- again, why not
 
 -- pulled from item-name.cc , sub_type_string(), case: OBJ_CORPSES
 -- {nil, false} will remove corpses from autopick, but for historical auto_butcher reasons,
@@ -3709,6 +3709,23 @@ function check_desired_item_types(it, name)
         for _, wtype in ipairs(wand_types) do
             if subtype == wtype[1] then
                 return you_xl <= wtype[3]
+            end
+        end
+    end
+
+    -- TODO: Dynamic evocations-based wand/evoker autopickup checks?
+    if class == "misc" then
+        for _, mtype in ipairs(misc_types) do
+            if subtype == mtype[1] then
+                -- Here we try to guard against keeping duplicate misc evokers.
+                local count = 0
+                for stuff in inventory() do
+                    if it.name() == stuff.name() then
+                        count = count + 1
+                    end
+                end
+                -- zig figs have a higher limit.
+                return count <= mtype[3]
             end
         end
     end
