@@ -2452,7 +2452,6 @@ local missile_egos = {	-- the MBN_NAME // MBN_TERSE table is all kinds of screwe
     {"buggy", true, 27}, }
 
 -- as in invent.cc, item_slot_name()
--- TODO: setup an armour pick fn with better logic, a subtype table won't cut it here
 local armour_types = {
     {nil, true},        -- this should actually never happen because OBJ_ARMOUR is special cased, see items.subtype() limitations below
     {"cloak", true},
@@ -2460,8 +2459,8 @@ local armour_types = {
     {"gloves", true},
     {"boots", true},
     {"shield", true},
-    {"body", false},    -- eh, I need full logic here
-    {"", true}, }   -- default case item_slot_name() fallthrough, I hope this will catch the empty string
+    {"body", false},
+    {"", true}, }   -- default case item_slot_name() fallthrough
 
 -- as in item-name.cc, _wand_type_name()
 local wand_types = {
@@ -3852,20 +3851,6 @@ function check_for_largest_unid_stack(classname)
     end
 
     return stack    -- if nil, all stacks of this classtype are (should be?) fully identified
-end
-
--- this functiton is currently unused, TODO: wrap it into auto-equip, maybe?
-function good_amulet_equipped()
-    amu = items.equipped_at("Amulet")
-    if amu then
-        local subtype = amu.subtype()
-        if amu.artefact or subtype == "amulet of regeneration" or subtype == "amulet of guardian spirit" or 
-           subtype == "amulet of reflection" or subtype == "amulet of faith" or subtype == "amulet of the acrobat" or
-           subtype == "amulet of rage" or subtype == "amulet of conservation" then
-            return true
-        end
-    end
-    return false
 end
 
 --  scroll id the largest stack of either potions or scrolls in that order
