@@ -1316,6 +1316,24 @@ function check_eligible_equip()
     return nil
 end
 
+-- helper function for autoequip() checks,
+-- here we compare current skill levels for items that require high skill to safely use
+-- TODO: Weapons
+function should_we_equip_this_yet(item)
+    -- TODO: Variable shield skill requirements vs. species body size check
+    if item.subtype() == "shield" then
+        -- bucklers are okay to equip any time
+        if item.name():find("kite shield") then
+            if you.skill("Shields") < 10 then return false end
+        elseif item.name():find("tower shield") then
+            if you.skill("Shields") < 17 then return false end
+        end
+    end
+
+    return true
+end
+
+
 -- "autoequip()"
 -- if the player has any items in inventory that are "better" than what's equipped in that slot,
 -- this function will return the first such item.
@@ -1335,12 +1353,12 @@ function check_better_equips()
                     equip_value = get_prop_value(equipped)
 
                     -- there's no guarantee that we have remove curse available, so we bail if the equipped slot is cursed
-                    if it_value > equip_value and not is_slot_cursed(equipped) then
+                    if it_value > equip_value and should_we_equip_this_yet(it) and not is_slot_cursed(equipped) then
                         return it
                     end
                 end
 
-                if equipped == nil and it_value >= 0 then
+                if equipped == nil and it_value >= 0 and should_we_equip_this_yet(it) then
                     return it
                 end
             end
