@@ -170,7 +170,12 @@ end
 -- final order (so that, after the sort, i < j implies not comp(list[j],list[i])). 
 -- If comp is not given, then the standard Lua operator < is used instead. 
 
+
+-- Lua table.sort() is unstable (it uses quicksort). When using it to sort our closed set of dijkstra vertices,
+-- we need to stabilize it, else our target path can change each time the sort is called.
+-- To stabilize this, we use the initial order of table insertion as a tiebreaker.
 function min_dist(a,b)
+    if a["distance"] == b["distance"] then return a["index"] < b["index"] end
     return a["distance"] < b["distance"]
 end
 
@@ -233,7 +238,7 @@ function update_dijkstra()
 
     dij_closed = {}
     dij_queue = {}
-
+    local index = 0
     -- first, we setup our priority queue, containing all vertices in the desired radius
     for i = -LOS,LOS do
         for j = -LOS,LOS do
@@ -241,11 +246,12 @@ function update_dijkstra()
             --if is_traversable(kfeat) and (monster.get_monster_at(i,j) == nil) then
             if is_traversable(kfeat) then
                 local weight = get_kfeat_move_delay(kfeat)
-                local map = {["x"] = i, ["y"] = j, ["parent"] = nil, ["distance"] = math.huge, ["weight"] = weight}
+                local map = {["x"] = i, ["y"] = j, ["parent"] = nil, ["distance"] = math.huge, ["weight"] = weight, ["index"] = index}
                 -- initialize the (0,0) vertex with distance 0, this ensures it will become our root node below
                 if i == 0 and j == 0 then map["distance"] = 0 end
                 --crawl.mpr("Adding node: (" .. i .. "," .. j .. ")")
                 table.insert(dij_queue, map)
+                index = index + 1
             end
         end
     end
@@ -317,13 +323,14 @@ function pathfind_to(x,y)
     return false
 end
 
+-- Lua table.sort() is unstable (it uses quicksort). When using it to sort our closed set of dijkstra vertices,
+-- we need to stabilize it, else our target path can change each time the sort is called.
+-- To stabilize this, we use the initial order of table insertion as a tiebreaker.
 function min_los(a,b)
+    if a["los_count"] == b["los_count"] then return a["index"] < b["index"] end
     return a["los_count"] < b["los_count"]
 end
 
--- Lua table sort is unstable: As-written, this function can return different target positions
--- each time it is called, if their ["los_count"] is otherwise equal.
--- TODO: stabilize this?
 function min_los_sort(heap)
     table.sort(heap, min_los)
 end
