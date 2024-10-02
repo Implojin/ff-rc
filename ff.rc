@@ -1057,8 +1057,8 @@ function fight()
     crawl.mpr("Fight!")
     update_pathfinding()
     local i,j = retrieve_best_closed_los_position()
---    if get_mons_count() > 1 and i ~= 0 and j ~= 0 and get_adjacent_mons_count() > 1 then
-    if get_mons_count() > 1 and i ~= 0 and j ~= 0 then
+    local needs_pathfind = not (i == 0 and j == 0)
+    if get_mons_count() > 1 and needs_pathfind then
         pathfind_to(i,j)
     elseif check_ranged_mons() == true or check_reach_range() > 1 then
         hit_closest()
