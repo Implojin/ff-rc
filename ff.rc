@@ -4123,31 +4123,27 @@ local skill_list = {    -- i actually don't see where the strings corresponding 
     "Maces & Flails",
     "Polearms",
     "Staves",
-    "Slings",
-    "Bows",
-    "Crossbows",
+    "Ranged Weapons",
     "Throwing",
     "Armour",
     "Dodging",
     "Stealth",
---    "Stabbing",   -- old ver
     "Shields",
---    "Traps & Doors",  -- dang how old is this code
     "Unarmed Combat",
     "Spellcasting",
     "Conjurations",
     "Hexes",
-    "Charms",
     "Summonings",
+    "Necromancy",
     "Translocations",
-    "Transmutations",
     "Fire Magic",
     "Ice Magic",
     "Air Magic",
     "Earth Magic",
-    "Poison Magic",
+    "Alchemy",
     "Invocations",
-    "Evocations", }
+    "Evocations",
+    "Shapeshifting", }
 
 local fighting_skill = {
     {"Fighting", true}, }
@@ -4176,33 +4172,32 @@ local primary_skill_table = {
 
 local melee_skills = {
 --    "Fighting",
---    "Short Blades",
+    "Short Blades",
     "Long Blades",
     "Axes",
     "Maces & Flails",
     "Polearms",
     "Staves",
---    "Stabbing",   -- old ver
-    "Unarmed Combat", }
+    "Unarmed Combat",
+    "Shapeshifting", }
 
 local ranged_skills = {
-    "Slings",
-    "Bows",
-    "Crossbows",
+    "Ranged Weapons",
     "Throwing", }
 
 local magic_skills = {
     "Conjurations",
     "Hexes",
-    "Charms",
     "Summonings",
+    "Necromancy",
     "Translocations",
-    "Transmutations",
     "Fire Magic",
     "Ice Magic",
     "Air Magic",
     "Earth Magic",
-    "Poison Magic", }
+    "Alchemy", }
+
+--local utility_skills = {
 --    "Invocations",
 --    "Evocations", }
 
