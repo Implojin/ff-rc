@@ -246,9 +246,26 @@ function update_dijkstra()
             --if is_traversable(kfeat) and (monster.get_monster_at(i,j) == nil) then
             if is_traversable(kfeat) then
                 local weight = get_kfeat_move_delay(kfeat)
-                local map = {["x"] = i, ["y"] = j, ["parent"] = nil, ["distance"] = math.huge, ["weight"] = weight, ["index"] = index}
+                local map = {["x"] = i, ["y"] = j, ["parent"] = nil, ["distance"] = math.huge, ["weight"] = weight, ["index"] = index,
+                             ["edges"] = math.huge}
                 -- initialize the (0,0) vertex with distance 0, this ensures it will become our root node below
                 if i == 0 and j == 0 then map["distance"] = 0 end
+
+                for k = -1,1 do
+                    for l = -1,1 do
+                        local adjacent_kfeat = view.feature_at(i + k, j + l)
+                        if not (k == 0 and l == 0) then
+                            if is_traversable(adjacent_kfeat) then
+                                if map["edges"] == math.huge then
+                                    map["edges"] = 1
+                                else
+                                    map["edges"] = map["edges"] + 1
+                                end
+                            end
+                        end
+                    end
+                end
+
                 --crawl.mpr("Adding node: (" .. i .. "," .. j .. ")")
                 table.insert(dij_queue, map)
                 index = index + 1
@@ -335,6 +352,20 @@ function min_los_sort(heap)
     table.sort(heap, min_los)
 end
 
+function min_edges(a,b)
+    if a["edges"] == b["edges"] then
+--        if a["los_count"] < b["los_count"] then
+            return a["index"] < b["index"]
+--        end 
+--        return a["los_count"] < b["los_count"]
+    end
+    return a["edges"] < b["edges"]
+end
+
+function min_edges_sort(heap)
+    table.sort(heap, min_edges)
+end
+
 -- here we store LOS visibility counts for every vertex in the dij_closed{} set,
 -- using view.cell_see_cell(). I *think* cell_see_cell() only checks tile solidity, and not clouds.
 -- TODO: verify whether cell_see_cell() accurately returns blocked-LOS for temporary (non-kfeat) things.
@@ -354,7 +385,7 @@ function update_closed_los()
         vertex["los_count"] = los_count
     end
 
-    min_los_sort(dij_closed)
+    min_edges_sort(dij_closed)
 end
 
 function retrieve_best_closed_los_position()
