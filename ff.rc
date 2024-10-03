@@ -52,7 +52,7 @@ show_travel_trail = true
 
 # highlight threatening mons tiles to help quickly contextualize m:threat() player control handoffs
 # this option can interfere with quick assessment of tile HP bars, so disable this if the auras bother you
-tile_show_threat_levels = tough, nasty
+tile_show_threat_levels = tough, nasty, unusual
 
 flush.failure = false
 
