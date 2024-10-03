@@ -2528,11 +2528,6 @@ local wand_types = {
     {"removedness", true, 27},
     {"bugginess", true, 27}, }
 
--- as in item-prop.cc , food_def Food_prop[] , *name field
-local food_types = {
-    {nil, false},        -- see items.subtype() limitations below, nil will almost always be the case for food
-    {"snozzcumber", true}, }    -- don't forget the snozz ;_;
-
 -- for convenience, this follows the ordering in scroll_type_name() in item-name.cc
 -- if this ordering seems nonsensical, blame that function's author
 local scroll_types = {
@@ -2717,6 +2712,36 @@ local rune_types = {
     {nil, true},    -- runes of zot should always return nil subtype, see items.subtype() limitations below
     {"rune of Zot", true}, }
 
+-- as found in item-prop.cc, gem_def Gem_prop[]
+local gem_types = {
+    {"smoky", true},
+    {"shimmering", true},
+    {"earthy", true},
+    {"mossy", true},
+    {"azure", true},
+    {"jade", true},
+    {"milky-white", true},
+    {"starry", true},
+    {"shining", true},
+    {"ivory", true},
+    {"sanguine", true},
+    {"midnight", true},
+    {"prismatic", true}, }
+
+-- as found in item-prop.cc, talisman_type_name()
+local talisman_types = {
+    {nil, true},
+    {"beast talisman", true},
+    {"flux talisman", true},
+    {"maw talisman", true},
+    {"serpent talisman", true},
+    {"blade talisman", true},
+    {"granite talisman", true},
+    {"dragon-blood talisman", true},
+    {"talisman of death", true},
+    {"storm talisman", true},
+    {"buggy talisman", true}, }
+
 -- untyped items that have been positively identified could actually return a subtype(),
 -- but as this type is a fallthrough and such items shouldn't exist, there are no identified subtype 
 -- matches to add here.
@@ -2732,10 +2757,9 @@ local untyped_types = {
 --  this returns a shortform string, overwriting "miscellaneous" and "staff", with "misc" and "magical staff"
 local item_types = {
     {"weapon", weapon_types},
---    {"missile", missile_types}, -- handling pickup / evaluation for missiles separately, don't want them being assessed here
+    -- missile_types : handling pickup / evaluation for missiles separately, don't want them being assessed here
     {"armour", armour_types},
---    {"wand", wand_types},       -- handling wand eval separately too, i guess
-    {"food", food_types},
+    -- wand_types : handling these separately
     {"scroll", scroll_types},
     {"jewellery", jewellery_types},
     {"potion", potion_types},
@@ -2746,7 +2770,10 @@ local item_types = {
     {"corpse", corpse_types},
     {"gold", gold_types},
     {"rune", rune_types},
-    {"", untyped_types}, }  -- will this empty string untyped fallthrough work?
+    {"gem", gem_types},
+    {"talisman", talisman_types},
+    -- gizmo_types : handling these separately
+    {"", untyped_types}, }
 
 function mpr_artprops(it)   -- debug utility function for printing the artprops of the top item in the floor stack at (0,0)
     crawl.mpr(it.name())
@@ -3652,6 +3679,31 @@ function check_desired_item_types(it)
             end
         end
         crawl.mpr("Autopicking unrecognized misc item: " .. it.name())
+        return true
+    end
+
+    -- TODO: Evaluate taslismans as equipment, instead. They can have artprops.
+    if class == "talisman" then
+        for _, mtype in ipairs(talisman_types) do
+            if subtype == mtype[1] then
+                -- Here we guard against keeping duplicate talismans.
+                local count = 0
+                for stuff in inventory() do
+                    if it.name() == stuff.name() then
+                        count = count + 1
+                    end
+                end
+                return count <= 1
+            end
+        end
+        crawl.mpr("Autopicking unrecognized talisman: " .. it.name())
+        return true
+    end
+
+    -- gizmo pickup *should* always be both true and irrelevant at time of writing,
+    -- the code that determines gizmo shortnames may(?) be in item-name.cc, gizmo_effect_name(),
+    -- but this is untested.
+    if class == "gizmo" then
         return true
     end
 
