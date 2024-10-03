@@ -1131,15 +1131,15 @@ function acquire(scroll)
 end
 
 function wield(it)
-    local it_name = it.name()
+    local itname = it.name()
     local it_class = it.class(true)
     local success = nil
 
     if it_class == "magical staff" or it_class == "weapon" then
-        crawl.mpr("Trying to wield item: " .. it_name)
+        crawl.mpr("Trying to wield item: " .. itname)
         success = it.wield()
     else
-        kickback("Trying to wield item: " .. it_name .. " , but it's a bad class to wield.")
+        kickback("Trying to wield item: " .. itname .. " , but it's a bad class to wield.")
         success = it.wield()
     end
 
@@ -2870,128 +2870,17 @@ function mpr_monster_debug()
     end
 end
 
--- all weapon type tables sourced from item-prop.cc, weapon_def Weapon_prop[]
+-- if there were weapon type tables here, they would be sourced from item-prop.cc, weapon_def Weapon_prop[]
 --
--- "name", basedamage, 10*basedelay
--- leaving accuracy out of these tables for now in favor of simple dam delay comparison,
--- probably i should do this the not-lazy way and include accuracy calcs but whatever
--- it's not like players pay attention to accuracy anyway
---
--- TODO: I should include acc in here so I can use it at .7 dam / .3 acc weightings in weapon comparisons
---local maces_and_flails_types = {
---	{"club", 5, 13},
-----	{"spiked flail", 5, 13},	-- old v
---	{"whip", 6, 11},
-----	{"hammer", 7, 13},	-- old v
---	{"mace", 8, 14},
---	{"flail", 10, 14},
---	{"morningstar", 13, 15},
---	{"demon whip", 11, 11},
---	{"sacred scourge", 12, 11},
---	{"dire flail", 13, 13},
---	{"eveningstar", 15, 15},
---	{"great mace", 17, 17},
---	{"giant club", 20, 16},
---	{"giant spiked club", 22, 18}, }
 
---local short_blades_types = {
---	{"dagger", 4, 10},
---	{"quick blade", 5, 7},
---	{"short sword", 6, 11},
---	{"rapier", 8, 12},
-----	{"cutlass", 8, 12}, }	-- old v
-
---local long_blades_types = {
---	{"falchion", 7, 13},
---	{"long sword", 9, 14},
---	{"scimitar", 11, 14},
---	{"demon blade", 12, 13},
---	{"eudemon blade", 13, 12},
---	{"double sword", 14, 15},
---	{"great sword", 15, 17},
---	{"triple sword", 17, 19},
-----	{"old falchion", 7, 13},	-- old ver blessed long blades
-----	{"old long sword", 9, 14},
-----	{"old scimitar", 11, 14},
-----	{"old double sword", 14, 15},
-----	{"old great sword", 14, 16},
-----	{"old triple sword", 17, 19}, }
-
---local axes_types = {
---	{"hand axe", 7, 13},
---	{"war axe", 11, 15},
---	{"broad axe", 13, 16},
---	{"battleaxe", 15, 17},
---	{"executioner's axe", 18, 20}, }
-
---local polearms_types = {
---	{"spear", 6, 11},
---	{"trident", 9, 13},
---	{"halberd", 13, 15},
---	{"scythe", 14, 20},
---	{"demon trident", 12, 13},
---	{"trishula", 13, 13},		-- for some reason, i'm surprised this is still in the game
---	{"glaive", 15, 17},
---	{"bardiche", 18, 20}, }
-
-
---local staves_types = {
---	{"staff", 5, 12},	-- magical staves only
---	{"quarterstaff", 10, 13},
---	{"lajatang", 16, 14}, }
-
--- i may want to separate these into tables by wskill
---local launchers_types = {
-----	{"blowgun", 0, 10},	-- old v
---	{"hunting sling", 5, 12},
---	{"fustibalus", 8, 14},
---	{"hand crossbow", 12, 15},
---	{"arbalest", 18, 19},
---	{"triple crossbow", 22, 23},
---	{"shortbow", 9, 13},
---	{"longbow", 15, 17}, }
-
---local sling_types = {
---	{"hunting sling", 5, 12},
---	{"fustibalus", 8, 14}, }
-
---local xbow_types = {
---	{"hand crossbow", 12, 15},
---	{"arbalest", 18, 19},
---	{"triple crossbow", 22, 23}, }
-
---local bow_types = {
---	{"shortbow", 9, 13},
---	{"longbow", 15, 17}, }
-
---local weapon_types_table = {
---	{"Short Blades", short_blades_types},
---	{"Long Blades", long_blades_types},
---	{"Axes", axes_types},
---	{"Maces & Flails", maces_and_flails_types},
---	{"Polearms", polearms_types},
---	{"Staves", staves_types},
---	{"Slings", sling_types},
---	{"Bows", bow_types},
---	{"Crossbows", xbow_types}, }
-
--- thought: i need to programmatically build a "best item per equip slot" table and store it;
+-- thought: i need to programmatically build a weighted "best item per equip slot" table and store it;
 -- i can update it like once per floor, or per slot whenever i would swap that slot,
 -- it's only like 8 to 10 items to store with some adjustments for species and it will save
 -- iterating over the inventory for every slot countless times
-
--- defining the "best" item when comparing against differing egos, plus levels, and artprops is a little challenging, but
--- it's kind of needed here
-
--- i could do "best item per skill type" for weapons, and "best item per aux slot" for armour,
--- defining "best jewellery" is going to require some kind of relative artprop evaluation function
--- (artprop eval will also need to be applied to armour)
-
 -- TODO: does the above comment chunk not just read as: "I need to cache the result of my autoequip function?" ???
--- TODO: Maybe implement that? it might not be worth the time?
+-- TODO: Maybe implement that?
 
-
--- TODO: Okay, I guess I'm writing this v2 function, finally?
+-- TODO: "best item per skill type" for weapons?
 -- Thoughts:
 -- * use base type weightings, similarly to the existing armour weightings
 -- * weight slaying as, like, 2 slay == 1 base damage? it doesnt work out that neatly in reality, but...
@@ -3020,37 +2909,12 @@ end
 -- flaming should be higher weighted than freezing, to let the script tab hydras with less effort?
 -- [[ maybe not, since i need to program non-melee hydra handling anyway... ]]
 
--- speed vorp elec disto venom drain flame freeze ?? new brands? (spectral? what else is there???)
-
-
-
-
-
---function check_desired_weapon_v2(it)
---	local itskill = it.weap_skill
---
---	-- if it doesn't use our best weapon or launcher skills, then we don't want it
---	if not (itskill == skwrap("melee") or itskill == skwrap("launcher")) then
---		return false
---	end
-
---	local itname = it.name()
---
---	for _, which_skill in ipairs(weapon_types_table) do
---		if itskill == which_skill[1] then
---			for _, weapon_name in ipairs(which_skill[2]) do
---
---
---
---end
-
 
 -- Many of the weapon checks in this function probably do not work on unidentified weapons.
 -- This is mostly not an issue now that floor-ID is a thing, but it may cause problems with antique shops.
 -- TODO: Antique shop compatibility review?
 -- TODO: This function was previously a mess. It needs extension/rewrite to use relative item weights,
--- much like the armour function has. I guess the half-written skeleton above was meant to be that, but
--- I never finished it?
+-- much like the armour function has.
 function check_desired_weapon(it)
     -- never autodrop our currently equipped weapon
     if it.equipped then return true end
@@ -3694,7 +3558,8 @@ function check_desired_jewellery(it)
 end
 
 -- autopick func
-function check_desired_item_types(it, name)
+function check_desired_item_types(it)
+    local name = it.name()
     local class = it.class(true)
     local subtype = it.subtype()
     local you_xl = you.xl()
@@ -3757,6 +3622,8 @@ function check_desired_item_types(it, name)
                 end
             end
         end
+        crawl.mpr("Autopicking unrecognized missile item subtype: " .. it.name())
+        return true
     end
 
     -- TODO: Dynamic evocations-based wand/evoker autopickup checks?
@@ -3766,6 +3633,8 @@ function check_desired_item_types(it, name)
                 return you_xl <= wtype[3]
             end
         end
+        crawl.mpr("Autopicking unrecognized wand item: " .. it.name())
+        return true
     end
 
     -- TODO: Dynamic evocations-based wand/evoker autopickup checks?
@@ -3783,6 +3652,8 @@ function check_desired_item_types(it, name)
                 return count <= mtype[3]
             end
         end
+        crawl.mpr("Autopicking unrecognized misc item: " .. it.name())
+        return true
     end
 
     for _,which_type in ipairs(item_types) do   -- subtype comparison tables, wherever we can get away with it,
@@ -3792,16 +3663,19 @@ function check_desired_item_types(it, name)
                     return value[2]
                 end
             end
---            return true     -- fallthrough pickup == true for unmatched subtypes
+            crawl.mpr("Autopicking unrecognized item subtype: " .. it.name())
+            return true
         end
     end
---    return true       -- fallthrough pickup == true for unmatched base types
+
+    crawl.mpr("Autopicking unrecognized item base type: " .. it.name())
+    return true
 end
 
 
 function check_for_junk_to_drop()
     for it in inventory() do
-        if (not it.equipped and check_desired_item_types(it, it.name()) == false) then
+        if (not it.equipped and check_desired_item_types(it) == false) then
             return it
         end
     end
@@ -4516,8 +4390,6 @@ function autoshop()
             local it_price = v[2]
             local it_is_on_list = v[3]
 
-            local itname = it.name()
-
             local it_letter = items.index_to_letter(off_by_index-1) -- thank you, dark souls
 
             -- TODO: Fix this up, it currently results in wrong behavior for duplicate item names.
@@ -4529,7 +4401,7 @@ function autoshop()
             -- when calling shop_inventory(), and does not update down here in my iterator.
             -- (This might be because items.shop_inventory() doesn't pass references, instead passing duplicate temp items / values?)
             -- I need to fixup this function to ensure proper shopping list behavior with several of the same item.
-            if not it_is_on_list and check_desired_item_types(it, itname) then
+            if not it_is_on_list and check_desired_item_types(it) then
                 crawl.mpr("Desired shop item: " .. it.name())
                 crawl.sendkeys('>' .. string.upper(it_letter) .. string.char(27))
                 did_we_update_the_shopping_list = true
