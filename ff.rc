@@ -2541,27 +2541,23 @@ local scroll_types = {
     {"teleportation", true},
     {"fear", true},
     {"noise", false},
-    {"remove curse", true},
     {"summoning", true},
     {"enchant weapon", true},   -- brings up a selection menu   -- can I handle these prompts with message log :find handlers?
     {"enchant armour", true},   -- brings up a selection menu
     {"torment", true},
-    {"random uselessness", false},
     {"immolation", true},
+    {"poison", true},
+    {"butterflies", true},
     {"blinking", true},         -- dump you into a position targeter
-    {"magic mapping", true},
+    {"revelation", true},
     {"fog", true},
     {"acquirement", true},      -- brings up a selection menu
     {"brand weapon", true},     -- brings up a selection menu
-    {"holy word", true},
     {"vulnerability", false},
     {"silence", true},          -- prevents you from reading scrolls for a bit, remember to check you.silenced() before read-id
     {"amnesia", false},         -- dumps you into a spell selection menu
-    {"curse weapon", true},     -- old ver          -- i'm not going to bother writing read-id handlers for removed scrolls
-    {"curse armour", true},     -- old ver
-    {"curse jewellery", true},  -- old ver
-    {"removedness", true},
-    {"bugginess", true}, }      -- go ahead and pickup removed + buggy
+    {"removedness", false},
+    {"bugginess", true}, }      -- if bugginess exists, we want to see it and fix it
 
 -- ugh
 -- as in item-name.cc, jewellery_type_name()
