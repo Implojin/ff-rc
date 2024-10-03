@@ -1372,6 +1372,8 @@ end
 function check_better_equips()
     for it in inventory() do
         if not it.equipped then
+            -- TODO: This needs to handle other equippable item types. (weapons, talismans, ranged weapons, ...)
+            -- TODO: This is probably(?) mis-evaluating orbs, since those didn't exist when this was written. 
             if it.class(true) == "armour" or it.class(true) == "jewellery" then
                 local equipped = nil
                 local equip_value = nil
@@ -2372,7 +2374,8 @@ local autofight_pathing_kickback = {
 
 -- Ideally the inventory management scripts will handle this, but if they don't, auto() needs to stop while the player fixes it
 local autopick_autodrop_failure_kickback = {
-    {"full inventory, (d)rop some stuff", "Your pack is full"}, }
+    {"full inventory, (d)rop some stuff", "Your pack is full"},
+    {"we don't recognize this item. Go fix the script!", "Autopicking unrecognized"}, }
 
 -- TODO: Rewrite the 'G>' logic to be a bit smarter, so this isn't needed
 local autopathing_target_failure_kickbacks = {
@@ -4020,7 +4023,7 @@ function you_are_cursed()
 end
 
 
-local skill_list = {    -- i actually don't see where the strings corresponding to these enums are defined, i'm going off of memory
+local skill_list = {
     "Fighting",
     "Short Blades",
     "Long Blades",
